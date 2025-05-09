@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\ActiveIngredientResource;
+use App\Http\Resources\SideEffectResource;
+use App\Http\Resources\TherapeuticUseResource;
 use App\Models\ActiveIngredient;
 use App\Models\SideEffect;
 use App\Models\TherapeuticUse;
@@ -13,6 +15,15 @@ use Illuminate\Validation\Rule;
 
 class ActiveIngredientController extends Controller
 {
+    public function fetchFormOptions()
+    {
+        return response()->json([
+            'side_effects' =>  SideEffectResource::collection( SideEffect::select('id', 'name')->get()),
+            'therapeutic_uses' =>TherapeuticUseResource::collection( TherapeuticUse::select('id', 'name')->get()),
+        ]);
+    }
+
+
     public function index(Request $request)
     {
         $validRelations = $this->extractValidRelations(ActiveIngredient::class, $request);

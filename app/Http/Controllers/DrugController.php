@@ -2,7 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\ActiveIngredientResource;
 use App\Http\Resources\DrugResource;
+use App\Http\Resources\FormResource;
+use App\Http\Resources\ManufacturerResource;
+use App\Http\Resources\RecommendedDosageResource;
 use App\Models\ActiveIngredient;
 use App\Models\Drug;
 use App\Models\Form;
@@ -16,13 +20,13 @@ use Illuminate\Validation\Rule;
 
 class DrugController extends Controller
 {
-    public function create()
+    public function fetchFormOptions()
     {
         return response()->json([
-            'forms' => Form::select('id', 'name')->get(),
-            'manufacturers' => Manufacturer::select('id', 'name')->get(),
-            'active_ingredients' => ActiveIngredient::active()->select('id', 'scientific_name')->get(),
-            'recommended_dosages' => RecommendedDosage::select('id', 'dosage')->get()
+            'forms' =>  FormResource::collection( Form::select('id', 'name')->get()),
+            'manufacturers' =>ManufacturerResource::collection( Manufacturer::select('id', 'name')->get()),
+            'active_ingredients' => ActiveIngredientResource::collection(ActiveIngredient::active()->select('id', 'scientific_name')->get()),
+            'recommended_dosages' =>RecommendedDosageResource::collection( RecommendedDosage::select('id', 'dosage')->get()),
         ]);
     }
 
@@ -50,17 +54,17 @@ class DrugController extends Controller
             'price' => 'required|numeric|min:0|gt:cost',
             'cost' => 'nullable|numeric|min:0',
             'stock' => 'required|integer|min:0',
-            'status' => 'required|in:active,expired',
+           // 'status' => 'required|in:active,expired',
             'is_requires_prescription' => 'boolean',
-            'production_date' => 'nullable|date',
+            'production_date' => 'required|date',
             'expiry_date' => [
                 'required',
                 'date',
                 Rule::when($request->filled('production_date'), ['after:production_date'])
             ], 'admin_notes' => 'nullable|string',
-            'form_id' => 'nullable|exists:forms,id',
-            'manufacturer_id' => 'nullable|exists:manufacturers,id',
-            'recommended_dosage_id' => 'nullable|exists:recommended_dosages,id',
+            'form_id' => 'required|exists:forms,id',
+            'manufacturer_id' => 'required|exists:manufacturers,id',
+            'recommended_dosage_id' => 'required|exists:recommended_dosages,id',
             'active_ingredients' => 'required|array',
             'active_ingredients.*.id' => 'required|exists:active_ingredients,id',
             'active_ingredients.*.concentration' => 'required|numeric|min:0',
@@ -83,7 +87,7 @@ class DrugController extends Controller
                 'cost' => $validated['cost'],
                 'profit_amount' => $profit_amount,
                 'stock' => $validated['stock'],
-                'status' => $validated['status'],
+                //'status' => $validated['status'],
                 'is_requires_prescription' => $validated['is_requires_prescription'] ?? false,
                 'production_date' => $validated['production_date'],
                 'expiry_date' => $validated['expiry_date'],
@@ -109,14 +113,6 @@ class DrugController extends Controller
                     ['value' => $translation['name']]
                 );
 
-                $status = $drug->expire() ? 'expired' : 'not expired';
-                $translatedValue = $locale === $sourceLocale
-                    ? $status
-                    : $translationService->translate($status, $sourceLocale, $locale);
-                $drug->translations()->updateOrCreate(
-                    ['locale' => $translation['locale'], 'field' => 'status'],
-                    ['value' =>$translatedValue]
-                );
 
                 if (isset($validated['description'])) {
                     $translatedValue = $locale === $sourceLocale
@@ -143,10 +139,10 @@ class DrugController extends Controller
                 }
             }
 
-            return $drug->loadMissing(['form:id,name', 'manufacturer:id,name', 'recommendedDosage:id,dosage', 'activeIngredients']);
+            return $drug;
         });
 
-        return new DrugResource($drug);
+        return $this->success(new DrugResource($drug));
     }
 
     public function update(Request $request, $id, TranslationService $translationService)
@@ -165,7 +161,7 @@ class DrugController extends Controller
             'price' => 'required|numeric|min:0|gt:cost',
             'cost' => 'nullable|numeric|min:0',
             'stock' => 'required|integer|min:0',
-            'status' => 'required|in:active,expired',
+         //   'status' => 'required|in:active,expired',
             'is_requires_prescription' => 'boolean',
             'production_date' => 'nullable|date',
             'expiry_date' => [
@@ -180,7 +176,7 @@ class DrugController extends Controller
             'active_ingredients.*.id' => 'required|exists:active_ingredients,id',
             'active_ingredients.*.concentration' => 'required|numeric|min:0',
             'active_ingredients.*.unit' => 'required|in:mg,g,ml,mcg,IU',
-            'translations' => 'sometimes|array',
+            'translations' => 'required|array',
             'translations.*.locale' => 'required|string|in:en,ar,fr',
             'translations.*.name' => 'required|string|max:255',
         ]);
@@ -199,7 +195,7 @@ class DrugController extends Controller
                 'cost' => $validated['cost'],
                 'profit_amount' => $profit_amount,
                 'stock' => $validated['stock'],
-                'status' => $validated['status'],
+              //  'status' => $validated['status'],
                 'is_requires_prescription' => $validated['is_requires_prescription'] ?? $drug->is_requires_prescription,
                 'production_date' => $validated['production_date'] ?? $drug->production_date,
                 'expiry_date' => $validated['expiry_date'],
@@ -229,16 +225,6 @@ class DrugController extends Controller
                         ['value' => $translation['name']]
                     );
 
-                    $status = $drug->expire() ? 'expired' : 'not expired';
-                    $translatedValue = $locale === $sourceLocale
-                        ? $status
-                        : $translationService->translate($status, $sourceLocale, $locale);
-                    $drug->translations()->updateOrCreate(
-                        ['locale' => $translation['locale'], 'field' => 'status'],
-                        ['value' =>$translatedValue]
-                    );
-
-
                     if (isset($validated['description'])) {
                         $translatedValue = $locale === $sourceLocale
                             ? $validated['description']
@@ -265,10 +251,10 @@ class DrugController extends Controller
                 }
             }
 
-            return $drug->load(['form', 'manufacturer', 'recommendedDosage', 'activeIngredients', 'translations']);
+            return $drug;
         });
 
-        return new DrugResource($drug);
+        return $this->success(new DrugResource($drug));
     }
 
     public function destroy($id)

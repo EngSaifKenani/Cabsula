@@ -2,15 +2,24 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\SideEffectCategoryResource;
 use App\Http\Resources\SideEffectResource;
 use App\Models\ActiveIngredient;
 use App\Models\SideEffect;
+use App\Models\SideEffectCategory;
 use App\Services\TranslationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class SideEffectController extends Controller
 {
+
+    public function fetchFormOptions()
+    {
+        return response()->json([
+            'categories' =>  SideEffectCategoryResource::collection( SideEffectCategory::select('id', 'name')->get()),
+        ]);
+    }
 
     public function index(Request $request)
     {

@@ -16,18 +16,17 @@ class FormResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'name' => $this->name,
-            'description' => $this->description,
-            'image_url' => $this->image ? asset('storage/'.$this->image) : null,
+            'name' => $this->when(array_key_exists('name', $this->getAttributes()), $this->name),
+            'description' => $this->when(array_key_exists('description', $this->getAttributes()), $this->description),
+            'image_url' => $this->when(array_key_exists('image', $this->getAttributes()), $this->image ? asset('storage/'.$this->image) : null),
 
-//            'translations' => $this->whenLoaded('translations', $this->translations),
-
+            // العلاقات
             'drugs' => DrugResource::collection($this->whenLoaded('drugs')),
             'drugs_count' => $this->whenCounted('drugs'),
 
-
-            'created_at' => $this->created_at,
-            'updated_at' => $this->updated_at,
+            // التواريخ
+            'created_at' => $this->when(array_key_exists('created_at', $this->getAttributes()), optional($this->created_at)->format('Y-m-d H:i:s')),
+            'updated_at' => $this->when(array_key_exists('updated_at', $this->getAttributes()), optional($this->updated_at)->format('Y-m-d H:i:s')),
         ];
     }
 }

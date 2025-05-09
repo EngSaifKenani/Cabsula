@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Log;
 class SideEffectCategoryController extends Controller
 {
 
+
+
     public function index(Request $request)
     {
 

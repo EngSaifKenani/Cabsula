@@ -16,15 +16,17 @@ class ManufacturerResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'name' => $this->name,
-            'country' => $this->country,
-            'website' => $this->website,
+            'name' => $this->when(array_key_exists('name', $this->getAttributes()), $this->name),
+            'country' => $this->when(array_key_exists('country', $this->getAttributes()), $this->country),
+            'website' => $this->when(array_key_exists('website', $this->getAttributes()), $this->website),
+
+            // العلاقات
             'drugs' => DrugResource::collection($this->whenLoaded('drugs')),
             'drugs_count' => $this->whenCounted('drugs'),
 
-
-            'created_at' =>  $this->created_at,
-            'updated_at' =>  $this->updated_at,
-   ];
+            // التواريخ
+            'created_at' => $this->when(array_key_exists('created_at', $this->getAttributes()), optional($this->created_at)->format('Y-m-d H:i:s')),
+            'updated_at' => $this->when(array_key_exists('updated_at', $this->getAttributes()), optional($this->updated_at)->format('Y-m-d H:i:s')),
+        ];
     }
 }

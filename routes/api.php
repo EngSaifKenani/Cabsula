@@ -2,19 +2,14 @@
 
 use App\Http\Controllers\ActiveIngredientController;
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\CategoryController;
-use App\Http\Controllers\ConcentrationController;
-use App\Http\Controllers\DrugConcentrationDosageController;
 use App\Http\Controllers\DrugController;
 use App\Http\Controllers\FormController;
 use App\Http\Controllers\ManufacturerController;
 use App\Http\Controllers\RecommendedDosageController;
-use App\Http\Controllers\ScientificNameController;
 use App\Http\Controllers\SideEffectCategoryController;
 use App\Http\Controllers\SideEffectController;
 use App\Http\Controllers\TherapeuticUseController;
 use App\Http\Controllers\VerifyAccountController; // تأكد من استيراد الكنترولر الصحيح
-use App\Services\TranslationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -38,145 +33,83 @@ Route::prefix('v1')->group(function () {
     });
 });
 
-// 🔒 Protected Routes (للعملاء المسجلين فقط)
 Route::prefix('v1')->middleware(['auth:sanctum'])->group(function () {
 
 
-    // for form
     Route::prefix('forms')->group(function () {
-        Route::get('/', [FormController::class, 'index']);
-        Route::get('/{id}', [FormController::class, 'show']);
-        Route::post('/', [FormController::class, 'store']);
-        Route::post('/{id}', [FormController::class, 'update']);
-        Route::delete('/{id}', [FormController::class, 'destroy']);
+        Route::get('/get-all', [FormController::class, 'index']);
+        Route::get('/get-one/{id}', [FormController::class, 'show']);
+        Route::post('/create', [FormController::class, 'store']);
+        Route::post('/update/{id}', [FormController::class, 'update']);
+         Route::delete('delete/{id}', [FormController::class, 'destroy']);
 
     });
 
-    // for manufacturer
     Route::prefix('manufacturers')->group(function () {
-        Route::get('/', [ManufacturerController::class, 'index']);
-        Route::get('/{id}', [ManufacturerController::class, 'show']);
-        Route::post('/', [ManufacturerController::class, 'store']);
-        Route::post('/{id}', [ManufacturerController::class, 'update']);
-        Route::delete('/{id}', [ManufacturerController::class, 'destroy']);
+        Route::get('/get-all', [ManufacturerController::class, 'index']);
+        Route::get('/get-one/{id}', [ManufacturerController::class, 'show']);
+        Route::post('/create', [ManufacturerController::class, 'store']);
+        Route::post('/update/{id}', [ManufacturerController::class, 'update']);
+         Route::delete('delete/{id}', [ManufacturerController::class, 'destroy']);
 
     });
 
-    // for categories
    Route::prefix('therapeutic-use')->group(function () {
-        Route::get('/', [TherapeuticUseController::class, 'index']);
-        Route::get('/{id}', [TherapeuticUseController::class, 'show']);
-        Route::post('/', [TherapeuticUseController::class, 'store']);
-        Route::post('/{id}', [TherapeuticUseController::class, 'update']);
-        Route::delete('/{id}', [TherapeuticUseController::class, 'destroy']);
-    });
-
-    //for concentrations
-    Route::prefix('concentrations')->group(function () {
-        Route::get('/', [ConcentrationController::class, 'index']);
-        Route::get('/{id}', [ConcentrationController::class, 'show']);
-        Route::post('/', [ConcentrationController::class, 'store']);
-        Route::post('/{id}', [ConcentrationController::class, 'update']);
-        Route::delete('/{id}', [ConcentrationController::class, 'destroy']);
-
+        Route::get('/get-all', [TherapeuticUseController::class, 'index']);
+        Route::get('/get-one/{id}', [TherapeuticUseController::class, 'show']);
+        Route::post('/create', [TherapeuticUseController::class, 'store']);
+        Route::post('/update/{id}', [TherapeuticUseController::class, 'update']);
+        Route::delete('delete/{id}', [TherapeuticUseController::class, 'destroy']);
     });
 
     Route::prefix('side-effect-categories')->group(function () {
-        Route::get('/', [SideEffectCategoryController::class, 'index']);
-        Route::get('/{id}', [SideEffectCategoryController::class, 'show']);
-        Route::post('/', [SideEffectCategoryController::class, 'store']);
-        Route::post('/{id}', [SideEffectCategoryController::class, 'update']);
-        Route::delete('/{id}', [SideEffectCategoryController::class, 'destroy']);
+         Route::get('/get-all', [SideEffectCategoryController::class, 'index']);
+        Route::get('/get-one/{id}', [SideEffectCategoryController::class, 'show']);
+         Route::post('/create', [SideEffectCategoryController::class, 'store']);
+        Route::post('/update/{id}', [SideEffectCategoryController::class, 'update']);
+         Route::delete('delete/{id}', [SideEffectCategoryController::class, 'destroy']);
     });
 
     Route::prefix('side-effect')->group(function () {
-        Route::get('/', [SideEffectController::class, 'index']);
-        Route::get('/{id}', [SideEffectController::class, 'show']);
-        Route::post('/', [SideEffectController::class, 'store']);
-        Route::post('/{id}', [SideEffectController::class, 'update']);
-        Route::delete('/{id}', [SideEffectController::class, 'destroy']);
+         Route::get('/get-all', [SideEffectController::class, 'index']);
+        Route::get('/get-one/{id}', [SideEffectController::class, 'show']);
+         Route::post('/create', [SideEffectController::class, 'store']);
+        Route::post('/update/{id}', [SideEffectController::class, 'update']);
+         Route::delete('delete/{id}', [SideEffectController::class, 'destroy']);
+        Route::get('/form-options', [SideEffectController::class, 'fetchFormOptions']);
+
     });
 
     Route::prefix('active-ingredient')->group(function () {
-        Route::get('/', [ActiveIngredientController::class, 'index']);
-        Route::get('/{id}', [ActiveIngredientController::class, 'show']);
-        Route::post('/', [ActiveIngredientController::class, 'store']);
-        Route::post('/{id}', [ActiveIngredientController::class, 'update']);
+         Route::get('/get-all', [ActiveIngredientController::class, 'index']);
+       Route::get('/get-one/{id}', [ActiveIngredientController::class, 'show']);
+         Route::post('/create', [ActiveIngredientController::class, 'store']);
+        Route::post('/update/{id}', [ActiveIngredientController::class, 'update']);
         Route::post('/{activeIngredient}/remove-side-effect', [ActiveIngredientController::class, 'removeSideEffectFromActiveIngredient']);
-        Route::delete('/{id}', [ActiveIngredientController::class, 'destroy']);
+         Route::delete('delete/{id}', [ActiveIngredientController::class, 'destroy']);
+        Route::get('/form-options', [ActiveIngredientController::class, 'fetchFormOptions']);
+
     });
 
   Route::prefix('drugs')->group(function () {
-        Route::get('/', [DrugController::class, 'index']);
-        Route::get('/{id}', [DrugController::class, 'show']);
-        Route::post('/', [DrugController::class, 'store']);
-        Route::post('/{id}', [DrugController::class, 'update']);
-        Route::delete('/{id}', [DrugController::class, 'destroy']);
+         Route::get('/get-all', [DrugController::class, 'index']);
+        Route::get('/get-one/{id}', [DrugController::class, 'show']);
+         Route::post('/create', [DrugController::class, 'store']);
+        Route::post('/update/{id}', [DrugController::class, 'update']);
+         Route::delete('delete/{id}', [DrugController::class, 'destroy']);
+      Route::get('/form-options', [DrugController::class, 'fetchFormOptions']);
 
-    });
+
+
+  });
 
     Route::prefix('recommended-dosage')->group(function () {
-        Route::get('/', [RecommendedDosageController::class, 'index']);
-        Route::get('/{id}', [RecommendedDosageController::class, 'show']);
-        Route::post('/', [RecommendedDosageController::class, 'store']);
+         Route::get('/get-all', [RecommendedDosageController::class, 'index']);
+        Route::get('/get-one/{id}', [RecommendedDosageController::class, 'show']);
+         Route::post('/create', [RecommendedDosageController::class, 'store']);
         Route::post ('/{id}', [RecommendedDosageController::class, 'update']);
-        Route::delete('/{id}', [RecommendedDosageController::class, 'destroy']);
+         Route::delete('delete/{id}', [RecommendedDosageController::class, 'destroy']);
     });
 
-
-/*    Route::prefix('drug-concentration-dosage')->group(function () {
-        Route::get('/', [DrugConcentrationDosageController::class, 'index']);
-        Route::get('/{id}', [DrugConcentrationDosageController::class, 'show']);
-        Route::post('/', [DrugConcentrationDosageController::class, 'store']);
-        Route::post('/{id}', [DrugConcentrationDosageController::class, 'update']);
-        Route::delete('/{id}', [DrugConcentrationDosageController::class, 'destroy']);
-    });*/
-
-
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Route::get('/test-translate', function (TranslationService $translator) {
-    try {
-        $translated = $translator->translate('Take two tablet daily', 'en', 'ar');
-        return response()->json(['translated' => $translated]);
-    } catch (\Exception $e) {
-        return response()->json(['error' => $e->getMessage()]);
-    }
-});
-//
-//
-//
-//Route::get('/test-translate/local',   function (TranslationService $translator)
-//{
-//    $text = 'Hello, how are you?';
-//    $translated = $translator->translate($text, 'en', 'ar');
-//
-//    return response()->json([
-//        'original' => $text,
-//        'translated' => $translated,
-//    ]);
-//});
 

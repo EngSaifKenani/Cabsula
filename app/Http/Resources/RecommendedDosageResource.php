@@ -17,18 +17,14 @@ class RecommendedDosageResource extends JsonResource
         return [
             'id' => $this->id,
 
-            'dosage' =>$this->dosage,
-            'notes' => $this->notes,
+            'dosage' => $this->when(array_key_exists('dosage', $this->getAttributes()), $this->dosage),
+            'notes' => $this->when(array_key_exists('notes', $this->getAttributes()), $this->notes),
 
             'drugs' => DrugResource::collection($this->whenLoaded('drugs')),
             'drugs_count' => $this->whenCounted('drugs'),
-         /*   'translations' => $this->when(
-                $request->user()?->can('view-translations'),
-                $this->translations
-            ),*/
 
-            'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
-            'updated_at' => $this->updated_at?->format('Y-m-d H:i:s')
+            'created_at' => $this->when(array_key_exists('created_at', $this->getAttributes()), optional($this->created_at)->format('Y-m-d H:i:s')),
+            'updated_at' => $this->when(array_key_exists('updated_at', $this->getAttributes()), optional($this->updated_at)->format('Y-m-d H:i:s')),
         ];
     }
 }
