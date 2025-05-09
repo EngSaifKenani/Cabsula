@@ -107,7 +107,7 @@ Route::prefix('v1')->middleware(['auth:sanctum'])->group(function () {
          Route::get('/get-all', [RecommendedDosageController::class, 'index']);
         Route::get('/get-one/{id}', [RecommendedDosageController::class, 'show']);
          Route::post('/create', [RecommendedDosageController::class, 'store']);
-        Route::post ('/{id}', [RecommendedDosageController::class, 'update']);
+        Route::post ('/update/{id}', [RecommendedDosageController::class, 'update']);
          Route::delete('delete/{id}', [RecommendedDosageController::class, 'destroy']);
     });
 
