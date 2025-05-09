@@ -19,6 +19,7 @@ class Drug extends Model
         'admin_notes',
         'profit_amount',
         'price',
+        'image',
         'stock',
         'is_active',
         'production_date',

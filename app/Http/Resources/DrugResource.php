@@ -21,6 +21,7 @@ class DrugResource extends JsonResource
             'admin_notes' =>  $this->admin_notes,
             'status' =>  $this->status,
             'price' => $this->price,
+            'image_url' => $this->image ? asset('storage/' . $this->image) : null, // افترض أن الصورة مُخزنة في storage
             'profit_amount' => $this->profit_amount,
             'stock' => $this->stock,
             'is_active' => $this->is_active,

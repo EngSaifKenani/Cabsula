@@ -98,6 +98,7 @@ Route::prefix('v1')->middleware(['auth:sanctum'])->group(function () {
         Route::post('/update/{id}', [DrugController::class, 'update']);
          Route::delete('delete/{id}', [DrugController::class, 'destroy']);
       Route::get('/form-options', [DrugController::class, 'fetchFormOptions']);
+      Route::get('/get-alternative/{id}', [DrugController::class, 'getAlternativeDrug']);
 
 
 

@@ -16,6 +16,7 @@ use App\Models\Translation;
 use App\Services\TranslationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class DrugController extends Controller
@@ -48,10 +49,14 @@ class DrugController extends Controller
 
     public function store(Request $request, TranslationService $translationService)
     {
-        $validated = $request->validate([
+        $request->validate([
             'name' => 'required|string|max:255|unique:drugs',
             'description' => 'nullable|string',
-            'price' => 'required|numeric|min:0|gt:cost',
+            'price' => ['required',
+                'numeric',
+                'min:0',
+                Rule::when($request->filled('cost'), ['gt:cost'])
+            ],            'image' => 'required|image|mimes:jpeg,png,jpg|max:2048',
             'cost' => 'nullable|numeric|min:0',
             'stock' => 'required|integer|min:0',
            // 'status' => 'required|in:active,expired',
@@ -73,32 +78,38 @@ class DrugController extends Controller
             'translations.*.locale' => 'required|string|in:en,ar,fr',
             'translations.*.name' => 'required|string|max:255',
         ]);
+
+        if ($request->hasFile('image')) {
+            $request['image'] = $request->file('image')->store('drugs', 'public');
+        }
+
         $profitPercentage = 20;
         // $profitPercentage = config('app.profit_percentage');
-        $profit_amount = isset($validated['cost']) && $validated['cost'] > 0
-            ? $validated['price'] - $validated['cost']
-            : ($validated['price'] * $profitPercentage) / 100;
+        $profit_amount = isset($request['cost']) && $request['cost'] > 0
+            ? $request['price'] - $request['cost']
+            : ($request['price'] * $profitPercentage) / 100;
         $sourceLocale = 'en';
-        $drug = DB::transaction(function () use ($sourceLocale, $profit_amount, $validated, $translationService) {
+        $drug = DB::transaction(function () use ($sourceLocale, $profit_amount, $request, $translationService) {
             $drug = Drug::create([
-                'name' => $validated['name'],
-                'description' => $validated['description'],
-                'price' => $validated['price'],
-                'cost' => $validated['cost'],
+                'name' => $request['name'],
+                'description' => $request->description,
+                'price' => $request['price'],
+                'image' => $request['image'],
+                'cost' => $request['cost'],
                 'profit_amount' => $profit_amount,
-                'stock' => $validated['stock'],
-                //'status' => $validated['status'],
-                'is_requires_prescription' => $validated['is_requires_prescription'] ?? false,
-                'production_date' => $validated['production_date'],
-                'expiry_date' => $validated['expiry_date'],
-                'admin_notes' => $validated['admin_notes'],
-                'form_id' => $validated['form_id'],
-                'manufacturer_id' => $validated['manufacturer_id'],
-                'recommended_dosage_id' => $validated['recommended_dosage_id'],
+                'stock' => $request['stock'],
+                //'status' => $request['status'],
+                'is_requires_prescription' => $request['is_requires_prescription'] ?? false,
+                'production_date' => $request['production_date'],
+                'expiry_date' => $request['expiry_date'],
+                'admin_notes' => $request['admin_notes'],
+                'form_id' => $request['form_id'],
+                'manufacturer_id' => $request['manufacturer_id'],
+                'recommended_dosage_id' => $request['recommended_dosage_id'],
             ]);
 
             $ingredientsData = [];
-            foreach ($validated['active_ingredients'] as $ingredient) {
+            foreach ($request['active_ingredients'] as $ingredient) {
                 $ingredientsData[$ingredient['id']] = [
                     'concentration' => $ingredient['concentration'],
                     'unit' => $ingredient['unit']
@@ -106,7 +117,7 @@ class DrugController extends Controller
             }
             $drug->activeIngredients()->sync($ingredientsData);
 
-            foreach ($validated['translations'] as $translation) {
+            foreach ($request['translations'] as $translation) {
                 $locale = $translation['locale'];
                 $drug->translations()->updateOrCreate(
                     ['locale' => $translation['locale'], 'field' => 'name'],
@@ -114,10 +125,10 @@ class DrugController extends Controller
                 );
 
 
-                if (isset($validated['description'])) {
+                if (isset($request['description'])) {
                     $translatedValue = $locale === $sourceLocale
-                        ? $validated['description']
-                        : $translationService->translate($validated['description'], $sourceLocale, $locale);
+                        ? $request['description']
+                        : $translationService->translate($request['description'], $sourceLocale, $locale);
 
 
                     $drug->translations()->updateOrCreate(
@@ -126,10 +137,10 @@ class DrugController extends Controller
                     );
                 }
 
-                if (isset($validated['admin_notes'])) {
+                if (isset($request['admin_notes'])) {
                     $translatedValue = $locale === $sourceLocale
-                        ? $validated['admin_notes']
-                        : $translationService->translate($validated['admin_notes'], $sourceLocale, $locale);
+                        ? $request['admin_notes']
+                        : $translationService->translate($request['admin_notes'], $sourceLocale, $locale);
 
 
                     $drug->translations()->updateOrCreate(
@@ -150,7 +161,7 @@ class DrugController extends Controller
         $drug = Drug::findOrFail($id);
 
 
-        $validated = $request->validate([
+         $request->validate([
             'name' => [
                 'required',
                 'string',
@@ -158,7 +169,12 @@ class DrugController extends Controller
                 Rule::unique('drugs')->ignore($drug->id)
             ],
             'description' => 'nullable|string',
-            'price' => 'required|numeric|min:0|gt:cost',
+            'price' => ['required',
+                'numeric',
+                'min:0',
+                Rule::when($request->filled('cost'), ['gt:cost'])
+            ],
+            'image' => 'sometimes|image|mimes:jpeg,png,jpg|max:2048',
             'cost' => 'nullable|numeric|min:0',
             'stock' => 'required|integer|min:0',
          //   'status' => 'required|in:active,expired',
@@ -181,33 +197,45 @@ class DrugController extends Controller
             'translations.*.name' => 'required|string|max:255',
         ]);
 
+        if ($request->hasFile('image')) {
+            if ($drug->image) {
+                Storage::disk('public')->delete($drug->image);
+            }
+            $request['image'] = $request->file('image')->store('drugs', 'public');
+        }
+
+
         $profitPercentage = 20;
         // $profitPercentage = config('app.profit_percentage');
-        $profit_amount = isset($validated['cost']) && $validated['cost'] > 0
-            ? $validated['price'] - $validated['cost']
-            : ($validated['price'] * $profitPercentage) / 100;
+        $profit_amount = isset($request['cost']) && $request['cost'] > 0
+            ? $request['price'] - $request['cost']
+            : ($request['price'] * $profitPercentage) / 100;
         $sourceLocale = 'en';
-        $drug = DB::transaction(function () use ($sourceLocale, $profit_amount, $drug, $validated, $translationService) {
+        $drug = DB::transaction(function () use ($sourceLocale, $profit_amount, $drug, $request, $translationService) {
             $drug->update([
-                'name' => $validated['name'],
-                'description' => $validated['description'] ?? $drug->description,
-                'price' => $validated['price'],
-                'cost' => $validated['cost'],
+                'name' => $request['name'],
+                'description' => $request['description'] ?? $drug->description,
+                'price' => $request['price'],
+                'image' => $request['image'] ??$drug->image,
+                'cost' => $request['cost'],
                 'profit_amount' => $profit_amount,
-                'stock' => $validated['stock'],
-              //  'status' => $validated['status'],
-                'is_requires_prescription' => $validated['is_requires_prescription'] ?? $drug->is_requires_prescription,
-                'production_date' => $validated['production_date'] ?? $drug->production_date,
-                'expiry_date' => $validated['expiry_date'],
-                'admin_notes' => $validated['admin_notes'] ?? $drug->admin_notes,
-                'form_id' => $validated['form_id'] ?? $drug->form_id,
-                'manufacturer_id' => $validated['manufacturer_id'] ?? $drug->manufacturer_id,
-                'recommended_dosage_id' => $validated['recommended_dosage_id'] ?? $drug->recommended_dosage_id,
+                'stock' => $request['stock'],
+              //  'status' => $request['status'],
+                'is_requires_prescription' => $request['is_requires_prescription'] ?? $drug->is_requires_prescription,
+                'production_date' => $request['production_date'] ?? $drug->production_date,
+                'expiry_date' => $request['expiry_date'],
+                'admin_notes' => $request['admin_notes'] ?? $drug->admin_notes,
+                'form_id' => $request['form_id'] ?? $drug->form_id,
+                'manufacturer_id' => $request['manufacturer_id'] ?? $drug->manufacturer_id,
+                'recommended_dosage_id' => $request['recommended_dosage_id'] ?? $drug->recommended_dosage_id,
+                'translations' => 'required|array',
+                'translations.*.locale' => 'required|string|in:en,ar,fr',
+                'translations.*.name' => 'required|string|max:255',
             ]);
 
-            if (isset($validated['active_ingredients'])) {
+            if (isset($request['active_ingredients'])) {
                 $ingredientsData = [];
-                foreach ($validated['active_ingredients'] as $ingredient) {
+                foreach ($request['active_ingredients'] as $ingredient) {
                     $ingredientsData[$ingredient['id']] = [
                         'concentration' => $ingredient['concentration'],
                         'unit' => $ingredient['unit']
@@ -216,19 +244,19 @@ class DrugController extends Controller
                 $drug->activeIngredients()->sync($ingredientsData);
             }
 
-            if (isset($validated['translations'])) {
+            if (isset($request['translations'])) {
 
-                foreach ($validated['translations'] as $translation) {
+                foreach ($request['translations'] as $translation) {
                     $locale = $translation['locale'];
                     $drug->translations()->updateOrCreate(
                         ['locale' => $translation['locale'], 'field' => 'name'],
                         ['value' => $translation['name']]
                     );
 
-                    if (isset($validated['description'])) {
+                    if (isset($request['description'])) {
                         $translatedValue = $locale === $sourceLocale
-                            ? $validated['description']
-                            : $translationService->translate($validated['description'], $sourceLocale, $locale);
+                            ? $request['description']
+                            : $translationService->translate($request['description'], $sourceLocale, $locale);
 
 
                         $drug->translations()->updateOrCreate(
@@ -237,10 +265,10 @@ class DrugController extends Controller
                         );
                     }
 
-                    if (isset($validated['admin_notes'])) {
+                    if (isset($request['admin_notes'])) {
                         $translatedValue = $locale === $sourceLocale
-                            ? $validated['admin_notes']
-                            : $translationService->translate($validated['admin_notes'], $sourceLocale, $locale);
+                            ? $request['admin_notes']
+                            : $translationService->translate($request['admin_notes'], $sourceLocale, $locale);
 
 
                         $drug->translations()->updateOrCreate(
@@ -281,6 +309,46 @@ class DrugController extends Controller
                 ['value' => true, 'label' => 'Requires Prescription'],
                 ['value' => false, 'label' => 'Over the Counter']
             ]
+        ]);
+    }
+
+    public function getAlternativeDrug($id)
+    {
+        $drug = Drug::select('id', 'name', 'image', 'price')
+            ->with(['activeIngredients' => function($query) {
+                $query->select(
+                    'active_ingredients.id',
+                    'active_ingredients.scientific_name',
+                    'drug_ingredients.concentration',
+                    'drug_ingredients.unit'
+                );
+            }])
+            ->findOrFail($id);
+
+        $activeIngredientIds = $drug->activeIngredients->pluck('id');
+
+        $alternativeDrugs = Drug::where('id', '!=', $id)
+            ->whereHas('activeIngredients', function($query) use ($activeIngredientIds) {
+                $query->whereIn('active_ingredients.id', $activeIngredientIds);
+            }, '=', count($activeIngredientIds)) // الشرط: يحتوي على نفس عدد المواد
+            ->whereDoesntHave('activeIngredients', function($query) use ($activeIngredientIds) {
+                $query->whereNotIn('active_ingredients.id', $activeIngredientIds);
+            }) // الشرط: لا يحتوي على مواد إضافية
+            ->select('id', 'name', 'image', 'price')
+            ->with(['activeIngredients' => function($query) {
+                $query->select(
+                    'active_ingredients.id',
+                    'active_ingredients.scientific_name',
+                    'drug_ingredients.concentration',
+                    'drug_ingredients.unit'
+                );
+            }])
+            ->get();
+
+
+        return response()->json([
+            'original_drug' => $drug,
+            'alternative_drugs' => $alternativeDrugs
         ]);
     }
 
