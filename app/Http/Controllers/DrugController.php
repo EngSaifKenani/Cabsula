@@ -312,7 +312,7 @@ class DrugController extends Controller
         ]);
     }
 
-    public function getAlternativeDrug($id)
+    public function getAlternativeDrugById($id)
     {
         $drug = Drug::select('id', 'name', 'image', 'price')
             ->with(['activeIngredients' => function($query) {
@@ -330,10 +330,10 @@ class DrugController extends Controller
         $alternativeDrugs = Drug::where('id', '!=', $id)
             ->whereHas('activeIngredients', function($query) use ($activeIngredientIds) {
                 $query->whereIn('active_ingredients.id', $activeIngredientIds);
-            }, '=', count($activeIngredientIds)) // الشرط: يحتوي على نفس عدد المواد
-            ->whereDoesntHave('activeIngredients', function($query) use ($activeIngredientIds) {
+            }, '=', count($activeIngredientIds))
+           ->whereDoesntHave('activeIngredients', function($query) use ($activeIngredientIds) {
                 $query->whereNotIn('active_ingredients.id', $activeIngredientIds);
-            }) // الشرط: لا يحتوي على مواد إضافية
+            })
             ->select('id', 'name', 'image', 'price')
             ->with(['activeIngredients' => function($query) {
                 $query->select(
@@ -348,7 +348,45 @@ class DrugController extends Controller
 
         return response()->json([
             'original_drug' => $drug,
-            'alternative_drugs' => $alternativeDrugs
+            'alternative_drugs_count' => $alternativeDrugs->count(),
+            'alternative_drugs' => $alternativeDrugs,
+
+        ]);
+    }
+
+
+    public function getAlternativeDrugByActiveIngredients(Request $request)
+    {
+        $validated = $request->validate([
+            'active_ingredients' => 'required|array',
+            'active_ingredients.*' => 'integer|exists:active_ingredients,id'
+        ]);
+
+        $ingredientIds = $validated['active_ingredients'];
+        $count = count($ingredientIds);
+
+        $alternativeDrugs = Drug::select('id', 'name', 'image', 'price')
+            ->with(['activeIngredients' => function($query) {
+                $query->select(
+                    'active_ingredients.id',
+                    'active_ingredients.scientific_name',
+                    'drug_ingredients.concentration',
+                    'drug_ingredients.unit'
+                );
+            }])
+            ->whereHas('activeIngredients', function($query) use ($ingredientIds) {
+                $query->whereIn('active_ingredients.id', $ingredientIds);
+                $query->activeIngredients.count()==$count;
+            }, '=', $count)
+            ->whereDoesntHave('activeIngredients', function($query) use ($ingredientIds) {
+                $query->whereNotIn('active_ingredients.id', $ingredientIds);
+            })
+            ->get();
+
+        return response()->json([
+            'original_drug' => null,
+            'alternative_drugs_count' => $alternativeDrugs->count(),
+            'alternative_drugs' => $alternativeDrugs,
         ]);
     }
 
