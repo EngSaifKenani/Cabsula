@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ActiveIngredientController;
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DrugController;
 use App\Http\Controllers\FormController;
@@ -33,7 +34,7 @@ Route::prefix('v1')->group(function () {
     });
 });
 
-Route::prefix('v1')->middleware(['auth:sanctum'])->group(function () {
+Route::prefix('v1')->middleware(['auth:sanctum','check.logout'])->group(function () {
 
 
     Route::prefix('forms')->group(function () {
@@ -113,6 +114,18 @@ Route::prefix('v1')->middleware(['auth:sanctum'])->group(function () {
         Route::post ('/update/{id}', [RecommendedDosageController::class, 'update']);
          Route::delete('delete/{id}', [RecommendedDosageController::class, 'destroy']);
     });
+
+    Route::prefix('admins')->middleware(['is_admin'])->group(function () {
+        Route::get('/get-all-pharmacist', [AdminController::class, 'listPharmacists']);
+        Route::get('/get-one-pharmacist/{id}', [AdminController::class, 'getPharmacistById']);
+        Route::post('create-pharmacist', [AdminController::class, 'createPharmacist']);
+        Route::post ('/update-pharmacist/{id}', [AdminController::class, 'updatePharmacist']);
+        Route::delete('delete-pharmacist/{id}', [AdminController::class, 'deletePharmacist']);
+    });
+
+
+
+
 
 });
 

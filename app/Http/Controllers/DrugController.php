@@ -376,7 +376,6 @@ class DrugController extends Controller
             }])
             ->whereHas('activeIngredients', function($query) use ($ingredientIds) {
                 $query->whereIn('active_ingredients.id', $ingredientIds);
-                $query->activeIngredients.count()==$count;
             }, '=', $count)
             ->whereDoesntHave('activeIngredients', function($query) use ($ingredientIds) {
                 $query->whereNotIn('active_ingredients.id', $ingredientIds);

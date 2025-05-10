@@ -16,7 +16,7 @@ class CheckAdmin
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (auth()->user()->userable_type !== Admin::class) {
+        if (!auth()->user()->isAdmin()) {
             abort(403, 'Permission denied');
         }
 

@@ -7,7 +7,7 @@ use App\Http\Middleware\CheckCustomer;
 use App\Http\Middleware\CheckPharmacist;
 use Illuminate\Foundation\Http\Kernel as HttpKernel;
 
-class Kernel extends HttpKernel
+class  Kernel extends HttpKernel
 {
     /**
      * The application's global HTTP middleware stack.
@@ -71,5 +71,6 @@ class Kernel extends HttpKernel
         'is_admin'=>CheckAdmin::class,
         'is_pharmacist'=>CheckPharmacist::class,
         'is_customer'=>CheckCustomer::class,
+        'check.logout' => \App\Http\Middleware\CheckForceLogout::class,
     ];
 }

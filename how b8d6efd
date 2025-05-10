@@ -1,0 +1,23 @@
+[33mcommit b8d6efd727a9989dfc0363a5a3cb584713761fca[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: SaifKenaniITE <eng.saif.kenani@gmail.com>
+Date:   Sat May 10 01:15:31 2025 +0300
+
+    add colom image for drug and method to return all alternative by id of drug
+
+[33mcommit 71926435daa9d2dd3b5af22bd3a7cffbd88b5fa5[m
+Author: SaifKenaniITE <eng.saif.kenani@gmail.com>
+Date:   Fri May 9 21:46:03 2025 +0300
+
+    update route
+
+[33mcommit 067a8c68f0d852a5de31e802645cfc67ede35e81[m
+Author: SaifKenaniITE <eng.saif.kenani@gmail.com>
+Date:   Fri May 9 21:43:52 2025 +0300
+
+    update route and add some  method
+
+[33mcommit bbddccb5ad03f65097d2c8e1e00e4f35b9ff4bd4[m
+Author: SaifKenaniITE <eng.saif.kenani@gmail.com>
+Date:   Fri May 9 03:41:37 2025 +0300
+
+    This project for pharmacy managment

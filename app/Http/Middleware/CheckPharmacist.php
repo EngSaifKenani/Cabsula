@@ -16,7 +16,7 @@ class CheckPharmacist
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (auth()->user()->userable_type !== Pharmacist::class) {
+        if (!auth()->user()->isPharmacist()) {
             abort(403, 'Permission denied');
         }
 
