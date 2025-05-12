@@ -49,8 +49,8 @@ class ActiveIngredientController extends Controller
             'unii_code' => 'nullable|string|max:100',
             'is_active' => 'boolean',
 
-            'side_effects_ids' => 'required|array',
-            'side_effects_ids.*' => 'exists:side_effects,id',
+            'side_effect' => 'required|array',      // بدون _ids
+            'side_effect.*' => 'exists:side_effects,id',
 
             'therapeutic_uses' => 'required|array',
             'therapeutic_uses.*.id' => 'required|exists:therapeutic_uses,id',
@@ -96,7 +96,7 @@ class ActiveIngredientController extends Controller
                 }
             }
 
-            $activeIngredient->sideEffects()->sync($validated['side_effects_ids']);
+            $activeIngredient->sideEffects()->sync($validated['side_effect']);
 
             $syncData = [];
             foreach ($validated['therapeutic_uses'] as $use) {
@@ -132,8 +132,8 @@ class ActiveIngredientController extends Controller
             'unii_code' => 'nullable|string|max:100',
             'is_active' => 'boolean',
 
-            'side_effects_ids' => 'nullable|array',
-            'side_effects_ids.*' => 'exists:side_effects,id',
+            'side_effect' => 'nullable|array',
+            'side_effect.*' => 'exists:side_effects,id',
 
             'therapeutic_uses' => 'nullable|array',
             'therapeutic_uses.*.id' => 'required|exists:therapeutic_uses,id',
@@ -153,18 +153,18 @@ class ActiveIngredientController extends Controller
                 'unii_code' => $validated['unii_code'] ?? $activeIngredient->unii_code,
                 'is_active' => $validated['is_active'] ?? $activeIngredient->is_active,
             ]);
+            $sourceLocale = 'en';
 
             foreach ($validated['translations'] as $translation) {
                 $locale = $translation['locale'];
 
                 $activeIngredient->translations()->updateOrCreate(
                     ['locale' => $locale, 'field' => 'scientific_name'],
-                    ['value' => $translation['scientific_name']]
+                    ['value' =>$translation['locale'] == $sourceLocale ? $validated['scientific_name'] : $translation['scientific_name']]
                 );
 
 
                 if (isset($translation['description'])) {
-                    $sourceLocale = 'en';
                     $translatedValue = $locale === $sourceLocale
                         ? ($validated['description'] ?? $activeIngredient->description)
                         : $translationService->translate($validated['description'] ?? $activeIngredient->description, $sourceLocale, $locale);
@@ -176,12 +176,10 @@ class ActiveIngredientController extends Controller
                 }
             }
 
-            // تحديث الآثار الجانبية
-            if (isset($validated['side_effects_ids'])) {
-                $activeIngredient->sideEffects()->sync($validated['side_effects_ids']);
+            if (isset($validated['side_effect'])) {
+                $activeIngredient->sideEffects()->sync($validated['side_effect']);
             }
 
-            // تحديث الاستخدامات العلاجية
             if (isset($validated['therapeutic_uses'])) {
                 $syncData = [];
                 foreach ($validated['therapeutic_uses'] as $use) {
@@ -202,17 +200,20 @@ class ActiveIngredientController extends Controller
     public function removeSideEffectFromActiveIngredient(Request $request, $activeIngredientId)
     {
         $request->validate([
-            'side_effect_id' => 'required|exists:side_effects,id'
+            'side_effects' => 'required|array',
+            'side_effects.*' => 'exists:side_effects,id'
         ]);
 
         $activeIngredient = ActiveIngredient::findOrFail($activeIngredientId);
-        $activeIngredient->sideEffects()->detach($request->side_effect_id);
+
+        $activeIngredient->sideEffects()->detach($request->side_effects);
 
         return $this->success([
             'scientific_name_id' => $activeIngredientId,
-            'side_effect_id' => $request->side_effect_id,
-        ], 'تم إزالة الأثر الجانبي بنجاح.');
+            'side_effects' => $request->side_effects,
+        ], 'تم إزالة الآثار الجانبية بنجاح.');
     }
+
 
     public function destroy($id)
     {

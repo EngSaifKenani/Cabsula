@@ -17,12 +17,10 @@ return new class extends Migration
 
             $table->string('name');
             $table->text('description')->nullable();
-            $table->decimal('price', 8, 2);
+            $table->decimal('price', 8, 2)->nullable();
             $table->string('image')->nullable();
-            $table->decimal('cost', 8, 2)->nullable();
-            $table->decimal('profit_amount')
-                ->default(0)
-                ->comment('نسبة الربح المئوية من سعر الدواء');
+            $table->decimal('cost', 8, 2);
+            $table->decimal('profit_amount')->default(0);
             $table->integer('stock')->default(0);
             $table->enum('status', ['active', 'expired'])->default('active');
             $table->boolean('is_requires_prescription')->default(false);

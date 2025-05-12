@@ -5,17 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use App\Traits\ApiResponse;
+use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
 {
-    use ApiResponse;
-
-
-
-
-
-
     public function listPharmacists()
     {
         $pharmacists = User::where('role', 'pharmacist')->get();
@@ -51,8 +44,8 @@ class AdminController extends Controller
             'email' => $request->input('email'),
             'password' => Hash::make($request->input('password')),
             'role' => 'pharmacist',
-            'phone_number' => $request->input('phone_number'),
-            'address' => $request->input('address')
+          //  'phone_number' => $request->input('phone_number'),
+           // 'address' => $request->input('address')
         ]);
 
         return $this->success([
@@ -71,8 +64,11 @@ class AdminController extends Controller
 
         $request->validate([
             'name' => 'sometimes|string|max:255',
-            'email' => 'sometimes|email|unique:users,email',
-            'phone_number' => 'sometimes|string|max:20',
+            'email' => [
+                'sometimes',
+                'email',
+                Rule::unique('users')->ignore($pharmacist->id)
+            ],            'phone_number' => 'sometimes|string|max:20',
             'address' => 'sometimes|string|max:500'
         ]);
 

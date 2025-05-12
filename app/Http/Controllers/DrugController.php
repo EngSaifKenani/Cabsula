@@ -52,13 +52,14 @@ class DrugController extends Controller
         $request->validate([
             'name' => 'required|string|max:255|unique:drugs',
             'description' => 'nullable|string',
-            'price' => ['required',
+            'price' => ['nullable',
                 'numeric',
                 'min:0',
                 Rule::when($request->filled('cost'), ['gt:cost'])
             ],            'image' => 'required|image|mimes:jpeg,png,jpg|max:2048',
-            'cost' => 'nullable|numeric|min:0',
+            'cost' => 'required|numeric|min:0',
             'stock' => 'required|integer|min:0',
+            'profitPercentage' => 'required|integer|min:5',
            // 'status' => 'required|in:active,expired',
             'is_requires_prescription' => 'boolean',
             'production_date' => 'required|date',
@@ -83,19 +84,24 @@ class DrugController extends Controller
             $request['image'] = $request->file('image')->store('drugs', 'public');
         }
 
-        $profitPercentage = 20;
-        // $profitPercentage = config('app.profit_percentage');
-        $profit_amount = isset($request['cost']) && $request['cost'] > 0
-            ? $request['price'] - $request['cost']
-            : ($request['price'] * $profitPercentage) / 100;
+        $cost = $request['cost'];
+        $profitPercentage = $request['profitPercentage'] ?? 20;
+        $price = $request['price'] ?? ($cost * ($profitPercentage / 100) + $cost);
+        $profit_amount =$price-$cost;
+
+
+
+
+
+
         $sourceLocale = 'en';
-        $drug = DB::transaction(function () use ($sourceLocale, $profit_amount, $request, $translationService) {
+        $drug = DB::transaction(function () use ($price, $cost, $sourceLocale, $profit_amount, $request, $translationService) {
             $drug = Drug::create([
                 'name' => $request['name'],
                 'description' => $request->description,
-                'price' => $request['price'],
+                'price' => $price,
                 'image' => $request['image'],
-                'cost' => $request['cost'],
+                'cost' => $cost,
                 'profit_amount' => $profit_amount,
                 'stock' => $request['stock'],
                 //'status' => $request['status'],
@@ -163,39 +169,44 @@ class DrugController extends Controller
 
          $request->validate([
             'name' => [
-                'required',
+                'sometimes',
                 'string',
                 'max:255',
                 Rule::unique('drugs')->ignore($drug->id)
             ],
             'description' => 'nullable|string',
-            'price' => ['required',
+            'price' => ['sometimes',
                 'numeric',
                 'min:0',
                 Rule::when($request->filled('cost'), ['gt:cost'])
             ],
             'image' => 'sometimes|image|mimes:jpeg,png,jpg|max:2048',
-            'cost' => 'nullable|numeric|min:0',
-            'stock' => 'required|integer|min:0',
+            'cost' => 'sometimes|numeric|min:0',
+             'profitPercentage' => 'required|integer|min:5',
+             'stock' => 'sometimes|integer|min:0',
          //   'status' => 'required|in:active,expired',
             'is_requires_prescription' => 'boolean',
-            'production_date' => 'nullable|date',
+            'production_date' => 'sometimes|date',
             'expiry_date' => [
                 'required',
                 'date',
                 Rule::when($request->filled('production_date'), ['after:production_date'])
-            ], 'admin_notes' => 'nullable|string',
-            'form_id' => 'nullable|exists:forms,id',
-            'manufacturer_id' => 'nullable|exists:manufacturers,id',
-            'recommended_dosage_id' => 'nullable|exists:recommended_dosages,id',
+            ], 'admin_notes' => 'sometimes|string',
+            'form_id' => 'sometimes|exists:forms,id',
+            'manufacturer_id' => 'sometimes|exists:manufacturers,id',
+            'recommended_dosage_id' => 'sometimes|exists:recommended_dosages,id',
             'active_ingredients' => 'sometimes|array',
             'active_ingredients.*.id' => 'required|exists:active_ingredients,id',
             'active_ingredients.*.concentration' => 'required|numeric|min:0',
             'active_ingredients.*.unit' => 'required|in:mg,g,ml,mcg,IU',
-            'translations' => 'required|array',
+            'translations' => 'sometimes|array',
             'translations.*.locale' => 'required|string|in:en,ar,fr',
             'translations.*.name' => 'required|string|max:255',
         ]);
+
+
+
+
 
         if ($request->hasFile('image')) {
             if ($drug->image) {
@@ -204,21 +215,19 @@ class DrugController extends Controller
             $request['image'] = $request->file('image')->store('drugs', 'public');
         }
 
-
-        $profitPercentage = 20;
-        // $profitPercentage = config('app.profit_percentage');
-        $profit_amount = isset($request['cost']) && $request['cost'] > 0
-            ? $request['price'] - $request['cost']
-            : ($request['price'] * $profitPercentage) / 100;
         $sourceLocale = 'en';
-        $drug = DB::transaction(function () use ($sourceLocale, $profit_amount, $drug, $request, $translationService) {
+        $drug = DB::transaction(function () use ( $sourceLocale, $drug, $request, $translationService) {
+            $cost = $request['cost']??$drug->cost;
+            $profitPercentage = $request['profitPercentage'] ?? 20;
+            $price = $request['price'] ?? ($cost * ($profitPercentage / 100) + $cost);
+            $profit_amount =$price-$cost;
             $drug->update([
-                'name' => $request['name'],
+                'name' => $request['name']?? $drug->name,
                 'description' => $request['description'] ?? $drug->description,
-                'price' => $request['price'],
+                'price' => $price??$drug->price,
                 'image' => $request['image'] ??$drug->image,
-                'cost' => $request['cost'],
-                'profit_amount' => $profit_amount,
+                'cost' => $cost??$drug->cost,
+                'profit_amount' => $profit_amount??$drug->profit_amount,
                 'stock' => $request['stock'],
               //  'status' => $request['status'],
                 'is_requires_prescription' => $request['is_requires_prescription'] ?? $drug->is_requires_prescription,
@@ -228,9 +237,6 @@ class DrugController extends Controller
                 'form_id' => $request['form_id'] ?? $drug->form_id,
                 'manufacturer_id' => $request['manufacturer_id'] ?? $drug->manufacturer_id,
                 'recommended_dosage_id' => $request['recommended_dosage_id'] ?? $drug->recommended_dosage_id,
-                'translations' => 'required|array',
-                'translations.*.locale' => 'required|string|in:en,ar,fr',
-                'translations.*.name' => 'required|string|max:255',
             ]);
 
             if (isset($request['active_ingredients'])) {
