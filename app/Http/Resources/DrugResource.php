@@ -18,14 +18,13 @@ class DrugResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'description' => $this->description,
-            'admin_notes' =>  $this->admin_notes,
+            'admin_notes' => $this->when(auth()->user()->isPharmacist(), $this->admin_notes),
             'status' =>  $this->status,
             'price' => $this->price,
-            'cost'=>auth()->user()->isAdmin()?:$this->cost,
-            'image_url' => $this->image ? asset('storage/' . $this->image) : null, // افترض أن الصورة مُخزنة في storage
-            'profit_amount' => $this->profit_amount,
+            'cost' => $this->when(auth()->user()->isAdmin(), $this->cost),
+            'image_url' => $this->image ? asset('storage/' . $this->image) : null,
+            'profit_amount' => $this->when(auth()->user()->isAdmin(), $this->profit_amount),
             'stock' => $this->stock,
-            'is_active' => $this->is_active,
             'is_requires_prescription' => $this->is_requires_prescription,
 
             // التواريخ
@@ -35,7 +34,6 @@ class DrugResource extends JsonResource
             'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
             'deleted_at' => $this->whenNotNull($this->deleted_at?->format('Y-m-d H:i:s')),
 
-            // العلاقات
             'form' => FormResource::make($this->whenLoaded('form')),
             'manufacturer' => ManufacturerResource::make($this->whenLoaded('manufacturer')),
             'recommended_dosage' => RecommendedDosageResource::make($this->whenLoaded('recommendedDosage')),
