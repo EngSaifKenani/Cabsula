@@ -5,6 +5,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DrugController;
 use App\Http\Controllers\FormController;
+use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\ManufacturerController;
 use App\Http\Controllers\RecommendedDosageController;
 use App\Http\Controllers\SideEffectCategoryController;
@@ -124,6 +125,10 @@ Route::prefix('v1')->middleware(['auth:sanctum','check.logout'])->group(function
     });
 
 
+    Route::get('/invoices', [InvoiceController::class, 'index']);
+    Route::get('/invoices/{id}', [InvoiceController::class, 'show']);
+    Route::post('/invoices', [InvoiceController::class, 'store']);
+    Route::delete('/invoices/{id}', [InvoiceController::class, 'destroy']);
 
 
 
