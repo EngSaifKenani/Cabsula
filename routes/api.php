@@ -3,6 +3,7 @@
 use App\Http\Controllers\ActiveIngredientController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BatchController;
 use App\Http\Controllers\DrugController;
 use App\Http\Controllers\FormController;
 use App\Http\Controllers\InvoiceController;
@@ -124,13 +125,19 @@ Route::prefix('v1')->middleware(['auth:sanctum','check.logout'])->group(function
         Route::delete('delete-pharmacist/{id}', [AdminController::class, 'deletePharmacist']);
     });
 
+    Route::prefix('batches')->group(function () {
+        Route::get('/get-all', [BatchController::class, 'index']);
+        Route::get('/get-one/{id}', [BatchController::class, 'show']);
+        Route::post('create', [BatchController::class, 'store']);
+        Route::post ('/update/{id}', [BatchController::class, 'update']);
+        Route::delete('delete/{id}', [BatchController::class, 'destroy']);
+    });
+
 
     Route::get('/invoices', [InvoiceController::class, 'index']);
     Route::get('/invoices/{id}', [InvoiceController::class, 'show']);
     Route::post('/invoices', [InvoiceController::class, 'store']);
     Route::delete('/invoices/{id}', [InvoiceController::class, 'destroy']);
-
-
 
 });
 

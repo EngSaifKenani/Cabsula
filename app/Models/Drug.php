@@ -7,23 +7,19 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Drug extends Model
+class   Drug extends Model
 {
     use HasFactory, HasTranslations, SoftDeletes;
 
     protected $translatable = ['name', 'description', 'status', 'admin_notes'];
     // protected $with = ['translations'];
-    protected $fillable = ['name',
+    protected $fillable = [
+        'name',
+        'total_sold',
         'description',
         'status',
         'admin_notes',
-        'profit_amount',
-        'price',
         'image',
-        'stock',
-        'is_active',
-        'production_date',
-        'expiry_date',
         'form_id',
         'manufacturer_id',
     ];
@@ -39,6 +35,40 @@ class Drug extends Model
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
     ];
+
+    public function batches()
+    {
+        return $this->hasMany(Batch::class);
+    }
+
+    public function latestBatch()
+    {
+        return $this->hasOne(Batch::class)
+            ->where('stock', '>', 0)
+            ->where('expiry_date', '>', now())
+            ->orderBy('expiry_date', 'asc')
+            ->where('status', 'active');
+    }
+
+    public function validBatches(){
+        return $this->hasMany(Batch::class)
+            ->where('stock', '>', 0)
+            ->where('expiry_date', '>', now())
+            ->orderBy('expiry_date', 'asc')
+            ->where('status', 'active');
+    }
+
+
+
+    public function availableQuantity()
+    {
+        return $this->batches()
+            ->where('expiration_date', '>', now())
+            ->sum('quantity');
+    }
+
+
+
 
 
     public function form()

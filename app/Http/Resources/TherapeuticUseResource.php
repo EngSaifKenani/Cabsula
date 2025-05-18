@@ -37,6 +37,7 @@ class TherapeuticUseResource extends JsonResource
             'active_ingredients' => ActiveIngredientResource::collection(
                 $this->whenLoaded('activeIngredients')
             ),
+
             'active_ingredients_count' => $this->whenCounted('activeIngredients'),
         ];
     }

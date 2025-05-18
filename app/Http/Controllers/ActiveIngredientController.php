@@ -12,6 +12,7 @@ use App\Services\TranslationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use function Laravel\Prompts\select;
 
 class ActiveIngredientController extends Controller
 {
@@ -27,7 +28,9 @@ class ActiveIngredientController extends Controller
     public function index(Request $request)
     {
         $validRelations = $this->extractValidRelations(ActiveIngredient::class, $request);
-        $activeIngredients = ActiveIngredient::with($validRelations)->get();
+        $activeIngredients = ActiveIngredient::select('id','scientific_name','description')
+            ->with($validRelations)
+            ->get();
 
         return $this->success(ActiveIngredientResource::collection($activeIngredients));
     }
@@ -49,8 +52,8 @@ class ActiveIngredientController extends Controller
             'unii_code' => 'nullable|string|max:100',
             'is_active' => 'boolean',
 
-            'side_effect' => 'required|array',      // بدون _ids
-            'side_effect.*' => 'exists:side_effects,id',
+            'side_effects' => 'required|array',
+            'side_effects.*' => 'exists:side_effects,id',
 
             'therapeutic_uses' => 'required|array',
             'therapeutic_uses.*.id' => 'required|exists:therapeutic_uses,id',
@@ -96,7 +99,7 @@ class ActiveIngredientController extends Controller
                 }
             }
 
-            $activeIngredient->sideEffects()->sync($validated['side_effect']);
+            $activeIngredient->sideEffects()->sync($validated['side_effects']);
 
             $syncData = [];
             foreach ($validated['therapeutic_uses'] as $use) {
@@ -132,8 +135,8 @@ class ActiveIngredientController extends Controller
             'unii_code' => 'nullable|string|max:100',
             'is_active' => 'boolean',
 
-            'side_effect' => 'nullable|array',
-            'side_effect.*' => 'exists:side_effects,id',
+            'side_effects' => 'nullable|array',
+            'side_effects.*' => 'exists:side_effects,id',
 
             'therapeutic_uses' => 'nullable|array',
             'therapeutic_uses.*.id' => 'required|exists:therapeutic_uses,id',
@@ -176,8 +179,8 @@ class ActiveIngredientController extends Controller
                 }
             }
 
-            if (isset($validated['side_effect'])) {
-                $activeIngredient->sideEffects()->sync($validated['side_effect']);
+            if (isset($validated['side_effects'])) {
+                $activeIngredient->sideEffects()->sync($validated['side_effects']);
             }
 
             if (isset($validated['therapeutic_uses'])) {

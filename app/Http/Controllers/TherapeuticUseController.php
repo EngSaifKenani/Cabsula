@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\DrugCollection;
+use App\Http\Resources\DrugResource;
 use App\Http\Resources\TherapeuticUseResource;
+use App\Models\Drug;
 use App\Models\TherapeuticUse;
 use App\Services\TranslationService;
 use Illuminate\Http\Request;
@@ -15,7 +18,7 @@ class TherapeuticUseController extends Controller
 
         $validRelations = $this->extractValidRelations(TherapeuticUse::class, $request);
 
-        $therapeutic_uses = TherapeuticUse::with($validRelations)->get();
+        $therapeutic_uses = TherapeuticUse::with($validRelations)->select('id','name','image')->get();
 
         return $this->success(TherapeuticUseResource::collection($therapeutic_uses), 'تم جلب التصنيفات بنجاح');
     }
@@ -23,9 +26,18 @@ class TherapeuticUseController extends Controller
     public function show(Request $request, $id)
     {
         $validRelations = $this->extractValidRelations(TherapeuticUse::class, $request);
-        $TherapeuticUse = TherapeuticUse::with($validRelations)->findOrFail($id);
+        $TherapeuticUse = TherapeuticUse::with($validRelations)->with('activeIngredients.drugs')->findOrFail($id);
 
-        return $this->success(new TherapeuticUseResource($TherapeuticUse), 'تم جلب التصنيف بنجاح');
+        $drugs = Drug::whereHas('activeIngredients.therapeuticUses', function($query) use ($TherapeuticUse) {
+            $query->where('therapeutic_uses.id', $TherapeuticUse->id);
+        })
+            ->select('id', 'name', 'description', 'image', 'is_requires_prescription')
+            ->with('validBatch')
+            ->with(['activeIngredients' => function($query) {
+                $query->select('active_ingredients.id', 'scientific_name' );
+            }])->distinct()
+            ->paginate(10);
+        return $this->success(new DrugCollection($drugs), 'تم جلب التصنيف بنجاح');
     }
 
 

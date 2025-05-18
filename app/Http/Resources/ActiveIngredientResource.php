@@ -25,7 +25,23 @@ class ActiveIngredientResource extends JsonResource
             'status' => $this->when(array_key_exists('is_active', $this->getAttributes()), $this->is_active), // يعتمد على is_active
 
             // علاقات
-            'drugs' => DrugResource::collection($this->whenLoaded('drugs')),
+            'drugs' => $this->whenLoaded('drugs', function () {
+                return $this->drugs->map(function ($drug) {
+                    return [
+                        'id' => $drug->id,
+                        'name' => $drug->name,
+                        'description' => $drug->description,
+                        'image_url' => $drug->image ? asset('storage/' . $drug->image) : null,
+                        'is_prescription_required' => $drug->is_prescription_required,
+                    ];
+                });
+            }),
+            'concentration' => $this->whenPivotLoaded('drug_ingredients', function () {
+                return $this->pivot->concentration;
+            }),
+            'unit' => $this->whenPivotLoaded('drug_ingredients', function () {
+                return $this->pivot->unit;
+            }),
             'side_effects' => SideEffectResource::collection($this->whenLoaded('sideEffects')),
             'therapeutic_uses' => TherapeuticUseResource::collection($this->whenLoaded('therapeuticUses')),
 

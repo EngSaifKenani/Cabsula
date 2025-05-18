@@ -17,20 +17,16 @@ return new class extends Migration
 
             $table->string('name');
             $table->text('description')->nullable();
-            $table->decimal('price', 8, 2)->nullable();
-            $table->string('image')->nullable();
-            $table->decimal('cost', 8, 2);
-            $table->decimal('profit_amount')->default(0);
-            $table->integer('stock')->default(0);
-            $table->enum('status', ['active', 'expired'])->default('active');
+            $table->integer('total_sold')->default(0);
             $table->boolean('is_requires_prescription')->default(false);
-            $table->date('production_date')->nullable()->comment('تاريخ الإنتاج');
-            $table->date('expiry_date')->comment('تاريخ انتهاء الصلاحية');
-            $table->text('admin_notes')->nullable(); // ملاحظات إدارية
+            $table->string('image')->nullable();
+            $table->text('admin_notes')->nullable();
+
             $table->foreignId('form_id')->nullable()->constrained()->onDelete('set null');
             $table->foreignId('manufacturer_id')->nullable()->constrained()->onDelete('set null');
             $table->foreignId('recommended_dosage_id')->nullable()->constrained('recommended_dosages')->onDelete('set null');
-            $table->timestamps();
+
+                $table->timestamps();
             $table->softDeletes();
         });
     }

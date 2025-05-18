@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\ActiveIngredientResource;
+use App\Http\Resources\DrugCollection;
 use App\Http\Resources\DrugResource;
 use App\Http\Resources\FormResource;
 use App\Http\Resources\ManufacturerResource;
@@ -31,19 +32,33 @@ class DrugController extends Controller
         ]);
     }
 
-    public function index(Request $request)
-    {
-        $validRelations = $this->extractValidRelations(Drug::class, $request);
-        $drugs = Drug::with($validRelations)->get();
+        public function index(Request $request)
+        {
+         /*   $perPage = 10;
+            $currentPage = $request->query('page', 1);
+            $offset = ($currentPage - 1) * $perPage;
+            $total = Drug::count();
+            $totalPages = ceil($total / $perPage);*/
 
-        return $this->success(DrugResource::collection($drugs));
-    }
+/*            $validRelations = $this->extractValidRelations(Drug::class, $request);*/
+            $drugs = Drug::/*skip($offset)->take($perPage)->*//*with($validRelations)->*/
+                  with('validBatches')
+                ->select('id','name','description','image','is_requires_prescription')
+              /*  ->with(['activeIngredients' => function($query) {
+                $query->select('active_ingredients.id', 'scientific_name');
+            }])*/
+                ->paginate(10);
+
+            return $this->success(new DrugCollection($drugs));
+        }
 
     public function show(Request $request, $id)
     {
         $validRelations = $this->extractValidRelations(Drug::class, $request);
-        $drug = Drug::with($validRelations)->findOrFail($id);
-
+        $drug= Drug::with(array_merge($validRelations, [
+            'activeIngredients:id,scientific_name',
+            'validBatches'
+        ]))->findOrFail($id);
         return $this->success(new DrugResource($drug));
     }
 
@@ -52,22 +67,9 @@ class DrugController extends Controller
         $request->validate([
             'name' => 'required|string|max:255|unique:drugs',
             'description' => 'nullable|string',
-            'price' => ['nullable',
-                'numeric',
-                'min:0',
-                Rule::when($request->filled('cost'), ['gt:cost'])
-            ],            'image' => 'required|image|mimes:jpeg,png,jpg|max:2048',
-            'cost' => 'required|numeric|min:0',
-            'stock' => 'required|integer|min:0',
-            'profitPercentage' => 'required|integer|min:5',
-           // 'status' => 'required|in:active,expired',
+            'image' => 'required|image|mimes:jpeg,png,jpg|max:2048',
             'is_requires_prescription' => 'boolean',
-            'production_date' => 'required|date',
-            'expiry_date' => [
-                'required',
-                'date',
-                Rule::when($request->filled('production_date'), ['after:production_date'])
-            ], 'admin_notes' => 'nullable|string',
+            'admin_notes' => 'nullable|string',
             'form_id' => 'required|exists:forms,id',
             'manufacturer_id' => 'required|exists:manufacturers,id',
             'recommended_dosage_id' => 'required|exists:recommended_dosages,id',
@@ -83,31 +85,13 @@ class DrugController extends Controller
         if ($request->hasFile('image')) {
             $request['image'] = $request->file('image')->store('drugs', 'public');
         }
-
-        $cost = $request['cost'];
-        $profitPercentage = $request['profitPercentage'] ?? 20;
-        $price = $request['price'] ?? ($cost * ($profitPercentage / 100) + $cost);
-        $profit_amount =$price-$cost;
-
-
-
-
-
-
         $sourceLocale = 'en';
-        $drug = DB::transaction(function () use ($price, $cost, $sourceLocale, $profit_amount, $request, $translationService) {
+        $drug = DB::transaction(function () use ($sourceLocale, $request, $translationService) {
             $drug = Drug::create([
-                'name' => $request['name'],
+                'name' => $request->name,
                 'description' => $request->description,
-                'price' => $price,
                 'image' => $request['image'],
-                'cost' => $cost,
-                'profit_amount' => $profit_amount,
-                'stock' => $request['stock'],
-                //'status' => $request['status'],
                 'is_requires_prescription' => $request['is_requires_prescription'] ?? false,
-                'production_date' => $request['production_date'],
-                'expiry_date' => $request['expiry_date'],
                 'admin_notes' => $request['admin_notes'],
                 'form_id' => $request['form_id'],
                 'manufacturer_id' => $request['manufacturer_id'],
@@ -175,23 +159,9 @@ class DrugController extends Controller
                 Rule::unique('drugs')->ignore($drug->id)
             ],
             'description' => 'nullable|string',
-            'price' => ['sometimes',
-                'numeric',
-                'min:0',
-                Rule::when($request->filled('cost'), ['gt:cost'])
-            ],
-            'image' => 'sometimes|image|mimes:jpeg,png,jpg|max:2048',
-            'cost' => 'sometimes|numeric|min:0',
-             'profitPercentage' => 'required|integer|min:5',
-             'stock' => 'sometimes|integer|min:0',
-         //   'status' => 'required|in:active,expired',
+             'image' => 'sometimes|image|mimes:jpeg,png,jpg|max:2048',
             'is_requires_prescription' => 'boolean',
-            'production_date' => 'sometimes|date',
-            'expiry_date' => [
-                'required',
-                'date',
-                Rule::when($request->filled('production_date'), ['after:production_date'])
-            ], 'admin_notes' => 'sometimes|string',
+           'admin_notes' => 'sometimes|string',
             'form_id' => 'sometimes|exists:forms,id',
             'manufacturer_id' => 'sometimes|exists:manufacturers,id',
             'recommended_dosage_id' => 'sometimes|exists:recommended_dosages,id',
@@ -217,22 +187,12 @@ class DrugController extends Controller
 
         $sourceLocale = 'en';
         $drug = DB::transaction(function () use ( $sourceLocale, $drug, $request, $translationService) {
-            $cost = $request['cost']??$drug->cost;
-            $profitPercentage = $request['profitPercentage'] ?? 20;
-            $price = $request['price'] ?? ($cost * ($profitPercentage / 100) + $cost);
-            $profit_amount =$price-$cost;
+
             $drug->update([
                 'name' => $request['name']?? $drug->name,
                 'description' => $request['description'] ?? $drug->description,
-                'price' => $price??$drug->price,
                 'image' => $request['image'] ??$drug->image,
-                'cost' => $cost??$drug->cost,
-                'profit_amount' => $profit_amount??$drug->profit_amount,
-                'stock' => $request['stock'],
-              //  'status' => $request['status'],
                 'is_requires_prescription' => $request['is_requires_prescription'] ?? $drug->is_requires_prescription,
-                'production_date' => $request['production_date'] ?? $drug->production_date,
-                'expiry_date' => $request['expiry_date'],
                 'admin_notes' => $request['admin_notes'] ?? $drug->admin_notes,
                 'form_id' => $request['form_id'] ?? $drug->form_id,
                 'manufacturer_id' => $request['manufacturer_id'] ?? $drug->manufacturer_id,
@@ -304,23 +264,9 @@ class DrugController extends Controller
         return $this->success([],'deleted successfully.');
     }
 
-    public function filterOptions()
-    {
-        return response()->json([
-            'status_options' => [
-                ['value' => 'active', 'label' => 'Active'],
-                ['value' => 'expired', 'label' => 'Expired']
-            ],
-            'prescription_options' => [
-                ['value' => true, 'label' => 'Requires Prescription'],
-                ['value' => false, 'label' => 'Over the Counter']
-            ]
-        ]);
-    }
-
     public function getAlternativeDrugById($id)
     {
-        $drug = Drug::select('id', 'name', 'image', 'price')
+        $drug = Drug::select('id', 'name', 'image','description','is_requires_prescription')
             ->with(['activeIngredients' => function($query) {
                 $query->select(
                     'active_ingredients.id',
@@ -340,7 +286,8 @@ class DrugController extends Controller
            ->whereDoesntHave('activeIngredients', function($query) use ($activeIngredientIds) {
                 $query->whereNotIn('active_ingredients.id', $activeIngredientIds);
             })
-            ->select('id', 'name', 'image', 'price')
+            ->with('validBatches')
+            ->select('id', 'name', 'image','description','is_requires_prescription')
             ->with(['activeIngredients' => function($query) {
                 $query->select(
                     'active_ingredients.id',
@@ -349,15 +296,15 @@ class DrugController extends Controller
                     'drug_ingredients.unit'
                 );
             }])
-            ->get();
+            ->paginate(10);
 
 
-        return response()->json([
-            'original_drug' => $drug,
+       /*return $this->success(['original_drug' => new DrugResource($drug),
             'alternative_drugs_count' => $alternativeDrugs->count(),
-            'alternative_drugs' => $alternativeDrugs,
+            'alternative_drugs' => new DrugCollection($alternativeDrugs)]
+        );*/
+        return $this->success(new DrugCollection($alternativeDrugs));
 
-        ]);
     }
 
 
@@ -371,7 +318,7 @@ class DrugController extends Controller
         $ingredientIds = $validated['active_ingredients'];
         $count = count($ingredientIds);
 
-        $alternativeDrugs = Drug::select('id', 'name', 'image', 'price')
+        $alternativeDrugs = Drug::select('id', 'name', 'image','description','is_requires_prescription')
             ->with(['activeIngredients' => function($query) {
                 $query->select(
                     'active_ingredients.id',
@@ -380,19 +327,17 @@ class DrugController extends Controller
                     'drug_ingredients.unit'
                 );
             }])
+            ->with('validBatches')
             ->whereHas('activeIngredients', function($query) use ($ingredientIds) {
                 $query->whereIn('active_ingredients.id', $ingredientIds);
             }, '=', $count)
             ->whereDoesntHave('activeIngredients', function($query) use ($ingredientIds) {
                 $query->whereNotIn('active_ingredients.id', $ingredientIds);
             })
-            ->get();
+            ->paginate(10);
 
-        return response()->json([
-            'original_drug' => null,
-            'alternative_drugs_count' => $alternativeDrugs->count(),
-            'alternative_drugs' => $alternativeDrugs,
-        ]);
+        return $this->success(new DrugCollection($alternativeDrugs));
+
     }
 
 }
