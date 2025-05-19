@@ -139,5 +139,15 @@ Route::prefix('v1')->middleware(['auth:sanctum','check.logout'])->group(function
     Route::post('/invoices', [InvoiceController::class, 'store']);
     Route::delete('/invoices/{id}', [InvoiceController::class, 'destroy']);
 
+
+
+    Route::middleware('auth:sanctum')->post('/reports/update', [ManufacturerController::class, 'updateReports']);
+
+    //GET /api/reports/weekly?manufacturer_id=3&year=2025
+    Route::get('/reports/weekly', [ManufacturerController::class, 'weeklyReports']);
+
+    //GET /api/reports/monthly?manufacturer_id=3&year=2025
+    Route::get('/reports/monthly', [ManufacturerController::class, 'monthlyReports']);
+
 });
 

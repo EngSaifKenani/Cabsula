@@ -4,10 +4,23 @@
 
     use App\Http\Resources\ManufacturerResource;
     use App\Models\Manufacturer;
+    use App\Models\ManufacturerSalesView;
+    use App\Models\MonthlyManufacturerReport;
+    use App\Models\WeeklyManufacturerReport;
+    use App\Services\ReportService;
+    use Carbon\Carbon;
     use Illuminate\Http\Request;
 
     class ManufacturerController extends Controller
     {
+
+        protected $reportService;
+
+        public function __construct(ReportService $reportService)
+        {
+            $this->reportService = $reportService;
+        }
+
         public function index(Request $request)
         {
             $validRelations = $this->extractValidRelations(Manufacturer::class, $request);
@@ -110,4 +123,101 @@
 
             return $this->success([], 'تم حذف الشركة بنجاح');
         }
+
+        public function manufacturerSalesReport(Request $request)
+        {
+            $fromDate = $request->input('fromDate');
+            $toDate = $request->input('toDate');
+            $manufacturerId = $request->input('manufacturer_id');
+
+            $query = ManufacturerSalesView::query();
+
+            if ($fromDate && $toDate) {
+                $query->whereBetween('sale_date', [$fromDate, $toDate]);
+            }
+
+            if ($manufacturerId) {
+                $query->where('manufacturer_id', $manufacturerId);
+            }
+
+            $results = $query->get();
+
+            return response()->json([
+                'message' => 'Sales data fetched successfully',
+                'data' => $results,
+            ]);
+        }
+
+        public function updateReports(Request $request,ReportService $reportService)
+        {
+            $reportService->updateReports();
+
+            return response()->json([
+                'message' => 'Manufacturer reports updated successfully.'
+            ]);
+        }
+
+        public function weeklyReport(Request $request)
+        {
+            $request->validate([
+                'manufacturer_id' => 'required|integer|exists:manufacturers,id',
+                'year' => 'required|integer',
+                'month' => 'required|integer|min:1|max:12',
+                'week_in_month' => 'required|integer|min:1|max:5',
+            ]);
+
+            $year = $request->year;
+            $month = $request->month;
+            $weekInMonth = $request->week_in_month;
+
+            $startOfMonth = Carbon::create($year, $month, 1)->startOfMonth();
+
+            $startOfWeek = $startOfMonth->copy()
+                ->addWeeks($weekInMonth - 1)
+                ->startOfWeek(Carbon::SATURDAY);
+
+            $weekNumber = $startOfWeek->weekOfYear;
+
+            $report = WeeklyManufacturerReport::where('manufacturer_id', $request->manufacturer_id)
+                ->where('year', $year)
+                ->where('week', $weekNumber)
+                ->first();
+
+            if (!$report) {
+                return response()->json([
+                    'message' => 'No report found for the given parameters.',
+                ], 404);
+            }
+
+            return response()->json([
+                'week_number' => $weekNumber,
+                'report' => $report,
+            ]);
+        }
+
+
+
+        public function monthlyReport(Request $request)
+        {
+            $request->validate([
+                'manufacturer_id' => 'required|integer|exists:manufacturers,id',
+                'year' => 'required|integer',
+                'month' => 'required|integer|min:1|max:12',
+            ]);
+
+            $report = MonthlyManufacturerReport::where('manufacturer_id', $request->manufacturer_id)
+                ->where('year', $request->year)
+                ->where('month', $request->month)
+                ->first();
+
+            if (!$report) {
+                return response()->json([
+                    'message' => 'No report found for the given parameters.',
+                ], 404);
+            }
+
+            return response()->json($report);
+        }
+
+
     }

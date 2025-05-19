@@ -27,6 +27,7 @@ class DatabaseSeeder extends Seeder
             SideEffectSeeder::class,
             ActiveIngredientSeeder::class,
             DrugSeeder::class,
+            ManufacturerReportSeeder::class,
 
 
         ]);
