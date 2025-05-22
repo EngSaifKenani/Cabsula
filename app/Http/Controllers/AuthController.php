@@ -3,16 +3,28 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\DeviceToken;
+use App\Services\DeviceTokenService;
+use App\Services\FirebaseService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rules\Password;
-use Kreait\Firebase\Messaging\CloudMessage;
 
 class AuthController extends Controller
 {
+
+    protected $firebaseService;
+    protected $deviceService;
+
+    public function __construct(FirebaseService $firebaseService, DeviceTokenService $deviceService)
+    {
+        $this->firebaseService = $firebaseService;
+        $this->deviceService = $deviceService;
+    }
+
     public function register(Request $request)
     {
         $validated = $request->validate([
@@ -22,15 +34,12 @@ class AuthController extends Controller
                 'required',
                 'confirmed',
                 Password::min(3)
-//                    ->mixedCase()
-//                    ->numbers()
             ],
             'phone_number' => 'nullable|string|max:20',
-            'gender' => 'nullable|in:male,female',
-            'address' => 'nullable|string|max:255',
-            'bio' => 'nullable|string|max:500',
+            //'gender' => 'nullable|in:male,female',
+           // 'address' => 'nullable|string|max:255',
+           // 'bio' => 'nullable|string|max:500',
             'fcm_token' => 'sometimes|string',
-            'device_id' => 'sometimes|string',
             'platform' => 'sometimes|in:android,ios,web'
         ]);
 
@@ -39,16 +48,22 @@ class AuthController extends Controller
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'phone_number' => $validated['phone_number'] ?? null,
-            'gender' => $validated['gender'] ?? null,
-            'profile_image' => $validated['profile_image'] ?? null,
-            'bio' => $validated['bio'] ?? null,
+           // 'gender' => $validated['gender'] ?? null,
+           // 'profile_image' => $validated['profile_image'] ?? null,
+           // 'bio' => $validated['bio'] ?? null,
             'role' => 'customer'
         ]);
 
-        $this->handleFcmToken($user, $validated);
 
-        session()->forget("cart{$user->id}");
-
+        if (!empty($validated['fcm_token'])) {
+            $this->deviceService->attachToken($user, $validated['fcm_token'], $validated['platform'] ?? 'android');
+            $this->firebaseService->sendNotification(
+                $validated['fcm_token'],
+                'Welcome!',
+                'Thank you for registering',
+                ['action' => 'welcome']
+            );
+        }
         return response([
             'user' => $user->only(['id', 'name', 'email', 'role', 'phone_number']),
             'token' => $user->createToken($user->email)->plainTextToken
@@ -61,20 +76,30 @@ class AuthController extends Controller
             'email' => 'required|email',
             'password' => 'required|string',
             'fcm_token' => 'sometimes|string',
-            'device_id' => 'sometimes|string',
             'platform' => 'sometimes|in:android,ios,web'
         ]);
 
-        if (!Auth::attempt($validated)) {
-            return response([
-                'message' => 'Invalid credentials.'
-            ], 403);
+        if (!Auth::attempt($request->only('email', 'password'))) {
+            return response(['message' => 'Invalid credentials.'], 403);
         }
 
         $user = auth()->user();
 
-        // إدارة FCM Token
-        $this->handleFcmToken($user, $validated);
+        $maxDevices = 5;
+        if ($user->deviceTokens()->count() >= $maxDevices) {
+            Auth::logout();
+            return response(['message' => 'Maximum devices limit reached.'], 403);
+        }
+
+        if (!empty($validated['fcm_token'])) {
+            $this->deviceService->attachToken($user, $validated['fcm_token'], $validated['platform'] ?? 'android');
+            $this->firebaseService->sendNotification(
+                $validated['fcm_token'],
+                'Welcome!',
+                'Thank you for logging in',
+                ['action' => 'welcome']
+            );
+        }
 
         return response([
             'user' => $user->only(['id', 'name', 'email', 'role', 'phone_number']),
@@ -82,21 +107,56 @@ class AuthController extends Controller
         ], 200);
     }
 
-    public function logout()
+    public function logout(Request $request)
     {
         $user = auth()->user();
-        $id = $user->id;
-
-        if (request()->has('device_id')) {
-            $user->fcmTokens()
-                ->where('device_id', request('device_id'))
-                ->delete();
-        }
-
+        $this->deviceService->detachToken($user, $request->input('fcm_token'));
         $user->currentAccessToken()->delete();
 
         return response()->noContent();
     }
+
+    public function logoutAll()
+    {
+        $user = auth()->user();
+
+        try {
+            $user->update(['last_force_logout' => now()]);
+            $this->sendLogoutNotification($user);
+            $this->deviceService->detachAll($user);
+            $this->revokeAllTokens($user);
+
+            return response()->json([
+                'message' => 'Logged out from all devices successfully'
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to logout from all devices'
+            ], 500);
+        }
+    }
+
+    protected function sendLogoutNotification(User $user)
+    {
+        $tokens = $user->deviceTokens()->pluck('token')->toArray();
+
+        if (empty($tokens)) return;
+
+        $this->firebaseService->sendNotification(
+            $tokens,
+            'Session Terminated',
+            'You have been logged out from all devices',
+            ['action' => 'force_logout']
+        );
+    }
+
+    protected function revokeAllTokens(User $user)
+    {
+        $user->tokens()->delete();
+        Auth::logoutOtherDevices($user->password);
+    }
+
+
 
     public function getProfile()
     {
@@ -109,8 +169,8 @@ class AuthController extends Controller
     {
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
-            'email' => 'sometimes|email|unique:users,email,'.auth()->id(),
-            'phone_number' => 'sometimes|string|max:20',
+           // 'email' => 'sometimes|email|unique:users,email,' . auth()->id(),
+          //  'phone_number' => 'sometimes|string|max:20',
             'gender' => 'sometimes|in:male,female',
             'address' => 'sometimes|string|max:255',
             'profile_image' => 'sometimes|image|mimes:jpeg,png,ico,jpg,gif,svg|max:2048',
@@ -136,111 +196,23 @@ class AuthController extends Controller
         ], 200);
     }
 
-
-    protected function handleFcmToken(User $user, array $data)
-    {
-        if (!empty($data['fcm_token'])) {
-            $user->fcmTokens()->updateOrCreate(
-                ['device_id' => $data['device_id'] ?? null],
-                [
-                    'token' => $data['fcm_token'],
-                    'platform' => $data['platform'] ?? 'android'
-                ]
-            );
-        }
-    }
-
-
-     function uploadImage(Request $request, $folder)
+    public function uploadImage(Request $request, $folder)
     {
         return $request->file('image')->store($folder, 'public');
     }
 
-
-    public function logoutAll()
+    protected function revokeDeviceByToken(User $user, ?string $fcmToken): void
     {
-        $user = auth()->user();
+        if (!$fcmToken) return;
 
-        try {
-            $user->update(['last_force_logout' => now()]);
-            $this->sendLogoutNotification($user);
-            $this->revokeAllTokens($user);
+        $device = DeviceToken::where('token', $fcmToken)->first();
 
-            return response()->json([
-                'message' => 'Logged out from all devices successfully'
-            ], 200);
+        if ($device) {
+            $user->deviceTokens()->detach($device->id);
 
-        } catch (\Exception $e) {
-         //   Log::error('Logout all failed: ' . $e->getMessage());
-            return response()->json([
-                'message' => 'Failed to logout from all devices'
-            ], 500);
+            if ($device->users()->count() === 0) {
+                $device->delete();
+            }
         }
     }
-    protected function sendLogoutNotification(User $user)
-    {
-        if (!method_exists($user, 'fcmTokens')) return;
-
-        $tokens = $user->fcmTokens()->pluck('token')->toArray();
-
-        if (empty($tokens)) return;
-
-        app('firebase.messaging')->sendMulticast(
-            CloudMessage::new()
-                ->withNotification([
-                    'title' => 'Session Terminated',
-                    'body' => 'You have been logged out from all devices'
-                ])
-                ->withData(['action' => 'force_logout']),
-            $tokens
-        );
-    }
-
-    protected function revokeAllTokens(User $user)
-    {
-        $user->tokens()->delete();
-
-        if (method_exists($user, 'fcmTokens')) {
-            $user->fcmTokens()->delete();
-        }
-
-        Auth::logoutOtherDevices($user->password);
-    }
-
-    // Return User Info
-
-
-    // Update User Info
-    public function update_profile(Request $request)
-    {
-        $request->validate([
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'image' => 'sometimes|image|mimes:jpeg,png,ico,jpg,gif,svg|max:2048',
-            'location' => 'sometimes|string|max:255',
-
-            // 'email' => 'sometimes|email|unique:users,email,' . auth()->id(),
-            // 'phone_number' => 'sometimes|digits:10|unique:users,phone_number,' . auth()->id(),
-            // 'password' => 'sometimes|string|min:8|confirmed|regex:/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/',
-        ]);
-
-        if (auth()->user()->image != null && Storage::disk('public')->exists(auth()->user()->image)) {
-            Storage::disk('public')->delete(auth()->user()->image);
-        }
-        auth()->user()->update(
-            [
-                'first_name' => $request->input('first_name'),
-                'last_name' => $request->input('last_name'),
-                'location' => $request->input('location'),
-                'image' => $this->uploadImage($request, 'profiles'),
-            ]
-        );
-
-        return response([
-            'user' => auth()->user(),
-            'message' => 'User Updated Successfully'
-        ], 200);
-    }
-
-
 }

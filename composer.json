@@ -7,11 +7,13 @@
     "require": {
         "php": "^8.1",
         "guzzlehttp/guzzle": "^7.2",
+        "kreait/firebase-php": "^7.18",
         "laravel/framework": "^10.10",
         "laravel/sanctum": "^3.3",
         "laravel/tinker": "^2.8",
         "predis/predis": "^3.0",
-        "spatie/laravel-translatable": "^6.11"
+        "spatie/laravel-translatable": "^6.11",
+        "stripe/stripe-php": "^17.2"
     },
     "require-dev": {
         "fakerphp/faker": "^1.9.1",

@@ -9,12 +9,11 @@ class TranslationService
     {
     }
 
-    public function translate(string $text, string $source = 'en', string $target = 'ar', bool $async = false): string
+    public function translate(string $text, string $source = 'en', string $target = 'ar', bool $async = true): string
     {
         if ($async) {
-            // أرسل الترجمة إلى الطابور وخذ النتيجة لاحقًا إن أردت
             TranslateText::dispatch($text, $source, $target);
-            return $text; // ترجمة مؤقتة إلى أن يتم معالجتها
+            return $text;
         }
 
         try {

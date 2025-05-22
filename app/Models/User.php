@@ -37,22 +37,13 @@ class User extends Authenticatable
     ];
 
     // العلاقات
-    public function fcmTokens()
+    public function deviceTokens()
     {
-        return $this->hasMany(FCMToken::class);
+        return $this->belongsToMany(DeviceToken::class)->withTimestamps();
     }
 
-    public function schedules()
-    {
-        return $this->hasMany(PharmacistSchedule::class, 'pharmacist_id');
-    }
 
-    public function vacations()
-    {
-        return $this->hasMany(PharmacistVacation::class, 'pharmacist_id');
-    }
 
-    // النطاقات (Scopes)
     public function scopePharmacists($query)
     {
         return $query->where('role', 'pharmacist');

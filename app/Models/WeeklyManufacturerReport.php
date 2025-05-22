@@ -16,4 +16,9 @@ class WeeklyManufacturerReport extends Model
         'total_quantity_sold',
         'total_profit',
     ];
+    public function manufacturer()
+    {
+        return $this->belongsTo(Manufacturer::class);
+    }
+
 }
