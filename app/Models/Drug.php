@@ -41,6 +41,7 @@ class   Drug extends Model
         return $this->hasMany(Batch::class);
     }
 
+
     public function latestBatch()
     {
         return $this->hasOne(Batch::class)

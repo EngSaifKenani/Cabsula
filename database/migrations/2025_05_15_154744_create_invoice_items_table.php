@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('invoice_id')->constrained()->onDelete('cascade');
             $table->foreignId('drug_id')->constrained()->onDelete('cascade');
+            $table->foreignId('batch_id')->constrained()->onDelete('cascade');
             $table->integer('quantity');
             $table->decimal('cost', 8, 2);  // سعر التكلفة للوحدة
             $table->decimal('price', 8, 2); // سعر البيع للوحدة

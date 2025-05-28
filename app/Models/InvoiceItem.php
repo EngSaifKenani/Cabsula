@@ -9,7 +9,7 @@ class InvoiceItem extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['invoice_id', 'drug_id', 'quantity', 'cost', 'price', 'profit_amount'];
+    protected $fillable = ['invoice_id', 'drug_id','batch_id' ,'quantity', 'cost', 'price', 'profit_amount'];
 
     public function invoice()
     {
@@ -20,4 +20,10 @@ class InvoiceItem extends Model
     {
         return $this->belongsTo(Drug::class);
     }
+
+    public function batch()
+    {
+        return $this->belongsTo(Batch::class);
+    }
+
 }
