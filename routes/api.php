@@ -138,6 +138,8 @@ Route::prefix('v1')->middleware(['auth:sanctum','check.logout'])->group(function
     Route::get('/invoices/{id}', [InvoiceController::class, 'show']);
     Route::post('/invoices', [InvoiceController::class, 'store']);
     Route::delete('/invoices/{id}', [InvoiceController::class, 'destroy']);
+    Route::delete('/invoices', [InvoiceController::class, 'destroy']);
+
 
 
 

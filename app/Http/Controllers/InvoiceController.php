@@ -12,84 +12,127 @@ use Illuminate\Support\Facades\DB;
 
 class InvoiceController extends Controller
 {
-    public function index(Request $request)
-    {
-        $user = auth()->user();
+        public function index(Request $request)
+        {
+            $user = auth()->user();
 
-        // تحميل الفواتير مع عناصرها، الأدوية، الدفعات، والمستخدم
-        // 'items.drug' و 'items.batch' ضروريان لإخفاء البيانات الحساسة لاحقاً
-        $query = Invoice::with(['items.drug', 'items.batch', 'user']);
+            // تحميل الفواتير مع عناصرها، الأدوية، الدفعات، والمستخدم
+            // 'items.drug' و 'items.batch' ضروريان لإخفاء البيانات الحساسة لاحقاً
+            $query = Invoice::with(['items.drug', 'items.batch', 'user']);
 
-        // 1. فلترة بناءً على دور المستخدم (صيدلي يرى فواتيره فقط)
-        if ($user->role === 'pharmacist') {
-            $query->where('user_id', $user->id);
-        } elseif ($request->filled('user_id')) {
-            // المشرف يمكنه الفلترة حسب المستخدم
-            $query->where('user_id', $request->user_id);
-        }
+            // 1. فلترة بناءً على دور المستخدم (صيدلي يرى فواتيره فقط)
+            if ($user->role === 'pharmacist') {
+                $query->where('user_id', $user->id);
+            } elseif ($request->filled('user_id')) {
+                // المشرف يمكنه الفلترة حسب المستخدم
+                $query->where('user_id', $request->user_id);
+            }
 
-        // 2. فلترة بناءً على رقم الفاتورة (invoice_number)
-        if ($request->filled('invoice_number')) {
-            $query->where('invoice_number', 'like', '%' . $request->invoice_number . '%');
-        }
+            // 2. فلترة بناءً على رقم الفاتورة (invoice_number)
+            if ($request->filled('invoice_number')) {
+                $query->where('invoice_number', 'like', '%' . $request->invoice_number . '%');
+            }
 
-        // 3. فلترة بناءً على السعر الإجمالي (total_price)
-        if ($request->filled('min_total_price')) {
-            $query->where('total_price', '>=', $request->min_total_price);
-        }
+            // 3. فلترة بناءً على السعر الإجمالي (total_price)
+            if ($request->filled('min_total_price')) {
+                $query->where('total_price', '>=', $request->min_total_price);
+            }
 
-        if ($request->filled('max_total_price')) {
-            $query->where('total_price', '<=', $request->max_total_price);
-        }
+            if ($request->filled('max_total_price')) {
+                $query->where('total_price', '<=', $request->max_total_price);
+            }
 
-        // 4. فلترة التاريخ الموحدة
-        $onDate = $request->input('on_date');
-        $fromDate = $request->input('from_date');
-        $toDate = $request->input('to_date');
+            // 4. فلترة التاريخ الموحدة
+            $onDate = $request->input('on_date');
+            $fromDate = $request->input('from_date');
+            $toDate = $request->input('to_date');
 
-        if ($onDate) {
-            // فلترة لتاريخ محدد (يوم واحد)
-            $query->whereDate('created_at', $onDate);
-        } elseif ($fromDate && $toDate) {
-            // فلترة لنطاق تاريخ (من تاريخ إلى تاريخ)
-            // التأكد من أن to_date يشمل اليوم بأكمله
-            $endDate = Carbon::parse($toDate)->endOfDay();
-            $query->whereBetween('created_at', [$fromDate, $endDate]);
-        } elseif ($fromDate) {
-            // فلترة من تاريخ معين فصاعداً
-            $query->whereDate('created_at', '>=', $fromDate);
-        } elseif ($toDate) {
-            // فلترة حتى تاريخ معين (بما في ذلك اليوم بأكمله)
-            $endDate = Carbon::parse($toDate)->endOfDay();
-            $query->whereDate('created_at', '<=', $endDate);
-        }
+            if ($onDate) {
+                // فلترة لتاريخ محدد (يوم واحد)
+                $query->whereDate('created_at', $onDate);
+            } elseif ($fromDate && $toDate) {
+                // فلترة لنطاق تاريخ (من تاريخ إلى تاريخ)
+                // التأكد من أن to_date يشمل اليوم بأكمله
+                $endDate = Carbon::parse($toDate)->endOfDay();
+                $query->whereBetween('created_at', [$fromDate, $endDate]);
+            } elseif ($fromDate) {
+                // فلترة من تاريخ معين فصاعداً
+                $query->whereDate('created_at', '>=', $fromDate);
+            } elseif ($toDate) {
+                // فلترة حتى تاريخ معين (بما في ذلك اليوم بأكمله)
+                $endDate = Carbon::parse($toDate)->endOfDay();
+                $query->whereDate('created_at', '<=', $endDate);
+            }
 
-        // ترتيب النتائج
-        $invoices = $query->orderBy('created_at', 'desc')->paginate(50);
+            // تنفيذ الاستعلام للحصول على الفواتير المفلترة (قبل التقسيم لجمع الإجماليات)
+            // نستخدم `get()` هنا لجمع كافة الفواتير المفلترة لحساب الإجماليات
+            // ثم نستخدم `paginate()` على المجموعة لضمان تقسيمها للصفحات
+            $allFilteredInvoices = $query->orderBy('created_at', 'desc')->get();
 
-        // إخفاء المعلومات الحساسة إذا لم يكن المستخدم مشرفًا
-        if ($user->role !== 'admin') {
-            foreach ($invoices as $invoice) {
-                // إخفاء تكلفة الفاتورة الإجمالية والربح الإجمالي من الفاتورة نفسها
-                unset($invoice->total_cost, $invoice->total_profit);
+            // حساب الإجماليات الصافية
+            $netTotalCost = 0;
+            $netTotalPrice = 0;
+            $netTotalProfit = 0;
 
-                // التأكد من تحميل items قبل المرور عليها
-                if ($invoice->relationLoaded('items')) {
-                    foreach ($invoice->items as $item) {
-                        // إخفاء حقول التكلفة والربح من كل عنصر فاتورة
-                        unset($item->cost, $item->profit_amount);
+            // اجمع الإجماليات من جميع الفواتير المفلترة
+            foreach ($allFilteredInvoices as $invoice) {
+                $netTotalCost += $invoice->total_cost;
+                $netTotalPrice += $invoice->total_price;
+                $netTotalProfit += $invoice->total_profit;
+            }
 
-                        // إخفاء تكلفة الدفعة إذا كانت محملة
-                        if ($item->relationLoaded('batch')) {
-                            unset($item->batch->cost);
+            // تطبيق التقسيم على المجموعة المفلترة بعد حساب الإجماليات
+            // هذا يضمن أن الإجماليات تمثل جميع الفواتير التي تطابق الفلترة،
+            // بينما يتم إرجاع الصفحات المطلوبة فقط
+            $perPage = 50;
+            $page = $request->input('page', 1);
+            $offset = ($page * $perPage) - $perPage;
+            $invoices = $allFilteredInvoices->slice($offset, $perPage)->values(); // استخدام values() لإعادة ترقيم المفاتيح
+            $paginatedInvoices = new \Illuminate\Pagination\LengthAwarePaginator(
+                $invoices,
+                $allFilteredInvoices->count(),
+                $perPage,
+                $page,
+                ['path' => $request->url(), 'query' => $request->query()]
+            );
+
+
+            // إخفاء المعلومات الحساسة إذا لم يكن المستخدم مشرفًا
+            if ($user->role !== 'admin') {
+                // إخفاء الإجماليات الحساسة من الاستجابة النهائية
+                $netTotalCost = null;
+                $netTotalProfit = null;
+
+                foreach ($paginatedInvoices as $invoice) { // استخدم $paginatedInvoices بدلاً من $invoices
+                    // إخفاء تكلفة الفاتورة الإجمالية والربح الإجمالي من الفاتورة نفسها
+                    unset($invoice->total_cost, $invoice->total_profit);
+
+                    // التأكد من تحميل items قبل المرور عليها
+                    if ($invoice->relationLoaded('items')) {
+                        foreach ($invoice->items as $item) {
+                            // إخفاء حقول التكلفة والربح من كل عنصر فاتورة
+                            unset($item->cost, $item->profit_amount);
+
+                            // إخفاء تكلفة الدفعة إذا كانت محملة
+                            if ($item->relationLoaded('batch')) {
+                                unset($item->batch->cost);
+                            }
                         }
                     }
                 }
             }
-        }
 
-        return response()->json($invoices);
-    }
+            // إرجاع الفواتير المصفحة والإجماليات
+            return response()->json([
+                'invoices' => $paginatedInvoices,
+                'net_totals' => [
+                    'net_total_cost' => $netTotalCost,
+                    'net_total_price' => $netTotalPrice,
+                    'net_total_profit' => $netTotalProfit,
+                ],
+                'message' => 'تم جلب الفواتير بنجاح.',
+            ]);
+        }
 
 
 
@@ -151,8 +194,8 @@ class InvoiceController extends Controller
                 'drug_id' => $item['drug_id'],
                 'batch_id' => $batch->id,
                 'quantity' => $item['quantity'],
-                'cost' => $batch->cost, // السعر من الدفعة
-                'price' => $batch->price, // السعر من الدفعة
+                'cost' => $batch->cost * $item['quantity'], // السعر من الدفعة
+                'price' => $batch->price * $item['quantity'], // السعر من الدفعة
                 'profit_amount' => ($batch->price - $batch->cost) * $item['quantity'],
             ]);
 
@@ -229,50 +272,80 @@ class InvoiceController extends Controller
         }
 
 
-    public function destroy($id)
+    public function destroy(Request $request, $id = null) // جعل $id اختياريًا للسماح بالمرور عبر الـ Request body
     {
-        // حمل الفاتورة مع عناصرها والدفعات المرتبطة
-        // هذا ضروري للوصول إلى الكميات والدفعات لإعادة المخزون
-        $invoice = Invoice::with('items.batch')->findOrFail($id);
         $user = auth()->user();
 
         // 1. التحقق من الصلاحيات: فقط الأدمن يمكنه الحذف
         if ($user->role !== 'admin') {
-            return response()->json(['error' => 'غير مصرح لك بحذف هذه الفاتورة.'], 403);
+            return response()->json(['error' => 'غير مصرح لك بحذف هذه الفواتير.'], 403);
         }
 
-        // 2. استخدام Transaction لضمان سلامة البيانات
-        // هذا يضمن أن جميع التغييرات ستتم بنجاح أو لا شيء منها سيتم
+        // تحديد معرّفات الفواتير المراد حذفها
+        // إذا كان $id ممرراً في المسار، استخدمه.
+        // وإلا، ابحث عن 'ids' في جسم الطلب (Request body).
+        $invoiceIds = $id ? [$id] : $request->input('ids');
+
+        // التحقق مما إذا تم تمرير معرّفات
+        if (empty($invoiceIds)) {
+            return response()->json(['error' => 'الرجاء تحديد معرّف فاتورة واحد أو عدة معرّفات لحذفها.'], 400);
+        }
+
+        // التأكد من أن جميع المعرّفات هي أرقام صحيحة
+        if (!is_array($invoiceIds)) {
+            $invoiceIds = [$invoiceIds]; // اجعلها مصفوفة إذا كانت قيمة واحدة
+        }
+        foreach ($invoiceIds as $invoiceId) {
+            if (!is_numeric($invoiceId)) {
+                return response()->json(['error' => 'معرّفات الفواتير يجب أن تكون أرقامًا صحيحة.'], 400);
+            }
+        }
+
+        // 2. استخدام Transaction لضمان سلامة البيانات لجميع عمليات الحذف
         DB::beginTransaction();
         try {
-            // 3. إعادة الكميات إلى الدفعات وإنقاص الكميات المباعة من الدفعات
-            // (الـ Observer سيتعامل مع total_sold للدواء)
-            foreach ($invoice->items as $item) {
-                $batch = $item->batch; // الوصول إلى الدفعة المحملة
+            $deletedCount = 0;
+            $failedIds = [];
 
-                if ($batch) {
-                    // زيادة الكمية في المخزون (stock) الخاص بالدفعة
-                    $batch->increment('stock', $item->quantity);
-                    // إنقاص الكمية المباعة (sold) من الدفعة
-                    $batch->decrement('sold', $item->quantity);
+            foreach ($invoiceIds as $invoiceId) {
+                $invoice = Invoice::with('items.batch')->find($invoiceId); // استخدم find بدلاً من findOrFail للتعامل مع الفواتير غير الموجودة
+                if (!$invoice) {
+                    $failedIds[] = $invoiceId; // سجل المعرّف غير الموجود
+                    continue; // انتقل إلى الفاتورة التالية
                 }
-                // *** لا حاجة لتعديل Drug::total_sold هنا مباشرة ***
-                // *** سيتعامل Observer الخاص بـ InvoiceItem مع ذلك تلقائيًا ***
+
+                // 3. إعادة الكميات إلى الدفعات وإنقاص الكميات المباعة
+                foreach ($invoice->items as $item) {
+                    $batch = $item->batch;
+
+                    if ($batch) {
+                        $batch->increment('stock', $item->quantity);
+                        $batch->decrement('sold', $item->quantity);
+                    }
+                    // Observer الخاص بـ InvoiceItem سيتعامل مع Drug::total_sold
+                }
+
+                // حذف الفاتورة
+                $invoice->delete();
+                $deletedCount++;
             }
-
-
-            $invoice->delete();
 
             // 5. تأكيد التغييرات في قاعدة البيانات
             DB::commit();
 
-            return response()->json(['message' => 'تم حذف الفاتورة بنجاح وإعادة الكميات إلى المخزون.']);
+            $message = "تم حذف {$deletedCount} فاتورة بنجاح وإعادة الكميات إلى المخزون.";
+            if (!empty($failedIds)) {
+                $message .= " لم يتم العثور على الفواتير التالية: " . implode(', ', $failedIds) . ".";
+                return response()->json(['message' => $message, 'failed_ids' => $failedIds], 200); // 200 OK حتى لو فشل البعض
+            }
+
+            return response()->json(['message' => $message]);
 
         } catch (\Exception $e) {
             // 6. التراجع عن التغييرات في حالة حدوث خطأ
             DB::rollBack();
 
-            return response()->json(['error' => 'حدث خطأ أثناء حذف الفاتورة وإعادة الكميات.'], 500);
+            return response()->json(['error' => 'حدث خطأ أثناء حذف الفواتير وإعادة الكميات.'], 500);
         }
     }
 }
