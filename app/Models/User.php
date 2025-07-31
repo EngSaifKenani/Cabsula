@@ -41,6 +41,12 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(DeviceToken::class)->withTimestamps();
     }
+    public function notifications()
+    {
+        return $this->belongsToMany(Notification::class, 'notification_user')
+            ->withPivot('isRead') ;
+    }
+
 
 
 

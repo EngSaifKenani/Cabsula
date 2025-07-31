@@ -13,17 +13,21 @@ return new class extends Migration
     {
         Schema::create('batches', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('drug_id')->constrained()->onDelete('cascade');
-            $table->string('batch_number')->unique()->nullable();
-            $table->integer('quantity')->default(0);
-            $table->integer('stock')->default(0);
-            $table->integer('sold')->default(0);
-            $table->date('production_date');
+            // الربط مع الصنف المحدد في الفاتورة
+            $table->foreignId('purchase_item_id')->constrained('purchase_items')->onDelete('cascade');
+            // الربط مع الدواء لسهولة الاستعلام (اختياري ولكنه مفيد)
+            $table->foreignId('drug_id')->constrained('drugs')->onDelete('cascade');
+            // رقم الدفعة (بدون قيد فريد)
+            $table->string('batch_number');
+            // الكمية التي تم استلامها في هذه الدفعة
+            $table->integer('quantity');
+            // المخزون المتبقي من هذه الدفعة (يتم تحديثه عند البيع)
+            $table->integer('stock');
             $table->date('expiry_date');
-            $table->decimal('cost', 8, 2);
-            $table->decimal('price', 8, 2);
-            $table->enum('status', ['active', 'expired'])->default('active');
-            $table->timestamps();
+            // سعر بيع الوحدة للجمهور
+            $table->decimal('selling_price', 8, 2);
+            // حالة الدفعة (قيد الوصول,نشطة، منتهية الصلاحية، نفذت)
+            $table->enum('status', ['pending', 'active', 'expired', 'sold_out'])->default('pending');            $table->timestamps();
         });
     }
 

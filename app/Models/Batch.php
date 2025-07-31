@@ -4,33 +4,51 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Batch extends Model
 {
+    use HasFactory;
+
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
     protected $fillable = [
+        'purchase_item_id',
         'drug_id',
-        'status',
-        'price',
-        'cost',
-        'stock',
+        'batch_number',
         'quantity',
-        'production_date',
+        'stock',
         'expiry_date',
+        'selling_price',
+        'status',
     ];
-    protected $dates = [
-        'production_date',
-        'expiry_date',
-    ];
+
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
     protected $casts = [
-        'production_date' => 'date',
         'expiry_date' => 'date',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
 
-    use HasFactory;
+    /**
+     * Get the purchase item that this batch belongs to.
+     */
+    public function purchaseItem(): BelongsTo
+    {
+        return $this->belongsTo(PurchaseItem::class);
+    }
 
-    public function drug()
+    /**
+     * Get the drug for this batch.
+     */
+    public function drug(): BelongsTo
     {
         return $this->belongsTo(Drug::class);
     }

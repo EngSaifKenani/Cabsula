@@ -8,11 +8,16 @@ use App\Http\Controllers\DrugController;
 use App\Http\Controllers\FormController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\ManufacturerController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\PurchaseInvoiceController;
 use App\Http\Controllers\RecommendedDosageController;
 use App\Http\Controllers\SideEffectCategoryController;
 use App\Http\Controllers\SideEffectController;
+use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\TherapeuticUseController;
 use App\Http\Controllers\VerifyAccountController; // تأكد من استيراد الكنترولر الصحيح
+use App\Models\Notification;
+use App\Models\PurchaseInvoice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -105,10 +110,29 @@ Route::prefix('v1')->middleware(['auth:sanctum','check.logout'])->group(function
       Route::get('/get-alternative/{id}', [DrugController::class, 'getAlternativeDrugById']);
       Route::get('/get-alternative', [DrugController::class, 'getAlternativeDrugByActiveIngredients']);
 
-
-
   });
 
+    Route::prefix('supplier')->group(function () {
+        Route::get('/get-one/{id}', [SupplierController::class, 'show']);
+        Route::get('/get-all', [SupplierController::class, 'index']);
+        Route::post('/create', [SupplierController::class, 'store']);
+        Route::post ('/update/{id}', [SupplierController::class, 'update']);
+        Route::delete('delete/{id}', [SupplierController::class, 'destroy']);
+    });
+     Route::prefix('purchase-invoice')->group(function () {
+        Route::get('/get-one/{id}', [PurchaseInvoiceController::class, 'show']);
+        Route::get('/get-all', [PurchaseInvoiceController::class, 'index']);
+        Route::post('/create', [PurchaseInvoiceController::class, 'store']);
+        Route::post ('/update/{id}', [PurchaseInvoiceController::class, 'update']);
+        Route::delete('delete/{id}', [PurchaseInvoiceController::class, 'destroy']);
+    });
+    Route::prefix('notification')->group(function () {
+        Route::get('/get-one/{id}', [NotificationController::class, 'show']);
+        Route::get('/get-all', [NotificationController::class, 'index']);
+        Route::post('/create', [NotificationController::class, 'store']);
+        Route::post ('/update/{id}', [NotificationController::class, 'update']);
+        Route::delete('delete/{id}', [NotificationController::class, 'destroy']);
+    });
     Route::prefix('recommended-dosage')->group(function () {
          Route::get('/get-all', [RecommendedDosageController::class, 'index']);
         Route::get('/get-one/{id}', [RecommendedDosageController::class, 'show']);

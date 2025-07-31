@@ -7,6 +7,7 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str; // <-- قم بإضافة هذا السطر
 use Illuminate\Validation\ValidationException;
 
 class PurchaseInvoiceController extends Controller
@@ -35,7 +36,8 @@ class PurchaseInvoiceController extends Controller
         try {
             // Validate the incoming request data
             $validatedData = $request->validate([
-                'invoice_number' => 'required|string|unique:purchase_invoices,invoice_number',
+                // 'invoice_number' has been removed from validation
+                'invoice_number' => 'nullable|string|unique:purchase_invoices,invoice_number',
                 'invoice_date' => 'required|date',
                 'supplier_id' => 'required|exists:suppliers,id',
                 'subtotal' => 'required|numeric|min:0',
@@ -48,7 +50,7 @@ class PurchaseInvoiceController extends Controller
                 'items.*.unit_cost' => 'required|numeric|min:0',
                 'items.*.total' => 'required|numeric|min:0',
                 'items.*.batches' => 'required|array|min:1',
-                'items.*.batches.*.batch_number' => 'required|string',
+                'items.*.batches.*.batch_number' => 'nullable|string', // <-- تم التعديل هنا
                 'items.*.batches.*.quantity' => 'required|integer|min:1',
                 'items.*.batches.*.expiry_date' => 'required|date|after:today',
                 'items.*.batches.*.selling_price' => 'required|numeric|min:0',
@@ -61,9 +63,12 @@ class PurchaseInvoiceController extends Controller
         // Use a database transaction to ensure data integrity
         DB::beginTransaction();
         try {
+            // Generate a unique invoice number automatically
+            $invoiceNumber = $validatedData['invoice_number']  ??'INV-' . now()->format('Ymd') . '-' . strtoupper(Str::random(6));
+
             // Create the main purchase invoice record
             $invoice = PurchaseInvoice::create([
-                'invoice_number' => $validatedData['invoice_number'],
+                'invoice_number' => $invoiceNumber,
                 'invoice_date' => $validatedData['invoice_date'],
                 'supplier_id' => $validatedData['supplier_id'],
                 'subtotal' => $validatedData['subtotal'],
@@ -85,14 +90,17 @@ class PurchaseInvoiceController extends Controller
 
                 // Loop through each batch for the current item
                 foreach ($itemData['batches'] as $batchData) {
+                    // Generate a batch number automatically if not provided
+                    $batchNumber = $batchData['batch_number'] ?? 'BCH-' . now()->format('ymd') . '-' . strtoupper(Str::random(4));
+
                     $purchaseItem->batches()->create([
                         'drug_id' => $purchaseItem->drug_id,
-                        'batch_number' => $batchData['batch_number'],
+                        'batch_number' => $batchNumber,
                         'quantity' => $batchData['quantity'],
                         'stock' => $batchData['quantity'], // Initially, stock equals quantity
                         'expiry_date' => $batchData['expiry_date'],
                         'selling_price' => $batchData['selling_price'],
-                        'status' => 'active',
+                        'status' => 'pending',
                     ]);
                 }
             }
@@ -132,12 +140,11 @@ class PurchaseInvoiceController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $invoice = PurchaseInvoice::find($id);
+        $invoice = PurchaseInvoice::with('purchaseItems.batches')->find($id);
         if (!$invoice) {
             return $this->error('الفاتورة غير موجودة', 404);
         }
 
-        // For simplicity, this only allows updating status and notes
         try {
             $validatedData = $request->validate([
                 'status' => 'required|in:draft,completed,cancelled',
@@ -147,9 +154,26 @@ class PurchaseInvoiceController extends Controller
             return $this->error($e->errors(), 422);
         }
 
-        $invoice->update($validatedData);
+        DB::beginTransaction();
+        try {
+            // Update the invoice itself
+            $invoice->update($validatedData);
 
-        return $this->success($invoice, 'تم تحديث الفاتورة بنجاح');
+            // If the invoice is cancelled, delete all associated 'pending' batches
+            if ($validatedData['status'] === 'cancelled') {
+                foreach ($invoice->purchaseItems as $item) {
+                    // Delete only batches that have not been received yet
+                    $item->batches()->where('status', 'pending')->delete();
+                }
+            }
+
+            DB::commit();
+            return $this->success($invoice, 'تم تحديث الفاتورة بنجاح');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->error('فشل في تحديث الفاتورة: ' . $e->getMessage(), 500);
+        }
     }
 
     /**
