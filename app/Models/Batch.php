@@ -22,7 +22,9 @@ class Batch extends Model
         'quantity',
         'stock',
         'expiry_date',
-        'selling_price',
+        'unit_cost',
+        'unit_price',
+        'total',
         'status',
     ];
 

@@ -13,8 +13,6 @@ return new class extends Migration
     {
         Schema::create('suppliers', function (Blueprint $table) {
             $table->id();
-                $table->foreignId('manufacturer_id')->constrained('manufacturers')->onDelete('cascade');
-
 
             $table->string('name');
             $table->string('email')->unique()->nullable();

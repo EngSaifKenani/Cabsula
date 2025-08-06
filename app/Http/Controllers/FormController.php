@@ -2,169 +2,154 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\PurchaseInvoice;
-use App\Traits\ApiResponse;
+use App\Http\Resources\FormResource;
+use App\Models\Form;
+use App\Services\TranslationService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Storage;
 
-class PurchaseInvoiceController extends Controller
+class FormController extends Controller
 {
-    // Use the custom trait for API responses
-    use ApiResponse;
 
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function index(Request $request)
     {
-        // Eager load relationships for better performance
-        $invoices = PurchaseInvoice::with('supplier', 'user')
-            ->latest()
-            ->paginate(15);
+        $validRelations = $this->extractValidRelations(Form::class, $request);
+        $forms = Form::with($validRelations)->get();
 
-        return $this->success($invoices, 'تم جلب الفواتير بنجاح');
+        return $this->success(FormResource::collection($forms), 'تم جلب النماذج بنجاح');
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    public function show(Request $request, $id)
     {
-        try {
-            // Validate the incoming request data
-            $validatedData = $request->validate([
-                'invoice_number' => 'required|string|unique:purchase_invoices,invoice_number',
-                'invoice_date' => 'required|date',
-                'supplier_id' => 'required|exists:suppliers,id',
-                'subtotal' => 'required|numeric|min:0',
-                'discount' => 'nullable|numeric|min:0',
-                'total' => 'required|numeric|min:0',
-                'notes' => 'nullable|string',
-                'items' => 'required|array|min:1',
-                'items.*.drug_id' => 'required|exists:drugs,id',
-                'items.*.quantity' => 'required|integer|min:1',
-                'items.*.unit_cost' => 'required|numeric|min:0',
-                'items.*.total' => 'required|numeric|min:0',
-                'items.*.batches' => 'required|array|min:1',
-                'items.*.batches.*.batch_number' => 'required|string',
-                'items.*.batches.*.quantity' => 'required|integer|min:1',
-                'items.*.batches.*.expiry_date' => 'required|date|after:today',
-                'items.*.batches.*.selling_price' => 'required|numeric|min:0',
-            ]);
-        } catch (ValidationException $e) {
-            // Return validation errors
-            return $this->error($e->errors(), 422);
+        $validRelations = $this->extractValidRelations(Form::class, $request);
+        $form = Form::with($validRelations)->findOrFail($id);
+
+        return $this->success(new FormResource($form), 'تم جلب النموذج بنجاح');
+    }
+
+
+    public function store(Request $request, TranslationService $translationService)
+    {
+        // التحقق من صحة المدخلات
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'translations' => 'required|array',
+            'translations.*.locale' => 'required|string|in:en,ar,fr',
+        ]);
+
+        $imagePath = null;
+        if ($request->hasFile('image')) {
+            $imagePath = $request->file('image')->store('forms', 'public');
         }
 
-        // Use a database transaction to ensure data integrity
-        DB::beginTransaction();
-        try {
-            // Create the main purchase invoice record
-            $invoice = PurchaseInvoice::create([
-                'invoice_number' => $validatedData['invoice_number'],
-                'invoice_date' => $validatedData['invoice_date'],
-                'supplier_id' => $validatedData['supplier_id'],
-                'subtotal' => $validatedData['subtotal'],
-                'discount' => $validatedData['discount'] ?? 0,
-                'total' => $validatedData['total'],
-                'status' => 'completed',
-                'notes' => $validatedData['notes'],
-                'user_id' => Auth::id(),
-            ]);
+        $form = Form::create([
+            'name' => $request->name,
+            'description' => $request->description,
+            'image' => $imagePath,
+        ]);
+        $sourceLocale = 'en';
+        if ($request->has('translations')) {
+            foreach ($request->translations as $translation) {
+                $locale = $translation['locale'];
 
-            // Loop through each item in the invoice
-            foreach ($validatedData['items'] as $itemData) {
-                $purchaseItem = $invoice->purchaseItems()->create([
-                    'drug_id' => $itemData['drug_id'],
-                    'quantity' => $itemData['quantity'],
-                    'unit_cost' => $itemData['unit_cost'],
-                    'total' => $itemData['total'],
+
+                $translatedName = $locale === $sourceLocale
+                    ? $request->name
+                    : $translationService->translate($request->name ?? '', $sourceLocale, $locale);
+
+                $form->translations()->create([
+                    'locale' => $translation['locale'],
+                    'field' => 'name',
+                    'value' => $translatedName ?? '',
                 ]);
 
-                // Loop through each batch for the current item
-                foreach ($itemData['batches'] as $batchData) {
-                    $purchaseItem->batches()->create([
-                        'drug_id' => $purchaseItem->drug_id,
-                        'batch_number' => $batchData['batch_number'],
-                        'quantity' => $batchData['quantity'],
-                        'stock' => $batchData['quantity'], // Initially, stock equals quantity
-                        'expiry_date' => $batchData['expiry_date'],
-                        'selling_price' => $batchData['selling_price'],
-                        'status' => 'active',
-                    ]);
-                }
+                $translatedDescription = $locale === $sourceLocale
+                    ? $request->description
+                    : $translationService->translate($request->description ?? '', $sourceLocale, $locale);
+
+                $form->translations()->create([
+                    'locale' => $translation['locale'],
+                    'field' => 'description',
+                    'value' => $translatedDescription ?? '',
+                ]);
             }
-
-            // If all operations succeed, commit the transaction
-            DB::commit();
-
-            // Load all related data to return the complete object
-            $invoice->load('supplier', 'user', 'purchaseItems.drug', 'purchaseItems.batches');
-
-            return $this->success($invoice, 'تم إنشاء الفاتورة بنجاح', 201);
-
-        } catch (\Exception $e) {
-            // If any error occurs, roll back the transaction
-            DB::rollBack();
-            return $this->error('فشل في إنشاء الفاتورة: ' . $e->getMessage(), 500);
         }
+
+        return $this->success(new FormResource($form), 'Form created successfully');
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show($id)
+    public function update(Request $request, $id, TranslationService $translationService)
     {
-        // Find the invoice and load all its nested relationships
-        $invoice = PurchaseInvoice::with('supplier', 'user', 'purchaseItems.drug', 'purchaseItems.batches')->find($id);
+        // التحقق من صحة البيانات
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+        ]);
 
-        if (!$invoice) {
-            return $this->error('الفاتورة غير موجودة', 404);
+        $form = Form::findOrFail($id);
+
+        if ($request->hasFile('image')) {
+            if ($form->image && Storage::disk('public')->exists($form->image)) {
+                Storage::disk('public')->delete($form->image);
+            }
+            $form->image = $request->file('image')->store('forms', 'public');
         }
 
-        return $this->success($invoice, 'تم جلب الفاتورة بنجاح');
+        // تحديث البيانات الأساسية
+        $form->name = $request->name;
+        $form->description = $request->description;
+        $form->save();
+
+
+        $sourceLocale = 'en';
+
+        $existingTranslations = $form->translations()->get();
+        foreach ($existingTranslations as $translation) {
+            $locale = $translation->locale;
+
+            try {
+                if ($request->has('name')) {
+                    $translatedValue = $locale === $sourceLocale
+                        ? $request->name
+                        : $translationService->translate($request->name, $sourceLocale, $locale);
+
+                    $form->translations()->updateOrCreate(
+                        ['locale' => $locale, 'field' => 'name'],
+                        ['value' => $translatedValue]
+                    );
+                }
+
+                if ($request->has('description')) {
+                    $translatedValue = $locale === $sourceLocale
+                        ? $request->description
+                        : $translationService->translate($request->description, $sourceLocale, $locale);
+
+                    $form->translations()->updateOrCreate(
+                        ['locale' => $locale, 'field' => 'description'],
+                        ['value' => $translatedValue]
+                    );
+                }
+            } catch (\Throwable $e) {
+            }
+        }
+
+        return $this->success(new FormResource($form), 'تم تعديل النموذج بنجاح');
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, $id)
-    {
-        $invoice = PurchaseInvoice::find($id);
-        if (!$invoice) {
-            return $this->error('الفاتورة غير موجودة', 404);
-        }
-
-        // For simplicity, this only allows updating status and notes
-        try {
-            $validatedData = $request->validate([
-                'status' => 'required|in:draft,completed,cancelled',
-                'notes' => 'nullable|string',
-            ]);
-        } catch (ValidationException $e) {
-            return $this->error($e->errors(), 422);
-        }
-
-        $invoice->update($validatedData);
-
-        return $this->success($invoice, 'تم تحديث الفاتورة بنجاح');
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy($id)
     {
-        $invoice = PurchaseInvoice::find($id);
-        if (!$invoice) {
-            return $this->error('الفاتورة غير موجودة', 404);
+        $form = Form::findOrFail($id);
+        if ($form->image && Storage::disk('public')->exists($form->image)) {
+            Storage::disk('public')->delete($form->image);
         }
 
-        // Note: You might need to add logic here to reverse stock changes
-        $invoice->delete();
+        $form->delete();
 
-        return $this->success(null, 'تم حذف الفاتورة بنجاح');
+        return $this->success([], 'تم حذف النموذج بنجاح');
     }
+
+
 }

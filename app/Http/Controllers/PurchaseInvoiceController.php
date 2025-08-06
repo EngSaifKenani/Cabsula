@@ -92,6 +92,8 @@ class PurchaseInvoiceController extends Controller
             'invoice_date' => 'nullable|date',
             'supplier_id' => 'required|exists:suppliers,id',
             'total' => 'required|numeric|min:0',
+            'subtotal' => 'nullable|numeric|min:0',
+            'discount' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.drug_id' => 'required|exists:drugs,id',
@@ -112,8 +114,9 @@ class PurchaseInvoiceController extends Controller
                 'invoice_number' => $invoiceNumber,
                 'invoice_date' => $validatedData['invoice_date'] ?? now(), // Apply default date logic
                 'supplier_id' => $validatedData['supplier_id'],
+                'subtotal' =>$validatedData['subtotal']?? $validatedData['total'],
                 'total' => $validatedData['total'],
-                'status' => 'paid', // This is a business decision
+                'status' => 'paid',
                 'notes' => $validatedData['notes'],
                 'user_id' => Auth::id(),
             ]);
@@ -142,6 +145,7 @@ class PurchaseInvoiceController extends Controller
                         'expiry_date' => $batchData['expiry_date'],
                         'unit_cost' => $purchaseItem->unit_cost, // <-- Copy cost from parent item
                         'unit_price' => $batchData['unit_price'], // Use price from the batch data
+                       'total'=> $purchaseItem['unit_cost'] * $batchData['quantity'],
                         'status' => 'active',
                     ]);
                 }
@@ -241,6 +245,7 @@ class PurchaseInvoiceController extends Controller
                         'expiry_date' => $batchData['expiry_date'],
                         'unit_cost' => $purchaseItem->unit_cost,
                         'unit_price' => $batchData['unit_price'],
+                        'total'=> $purchaseItem['unit_cost'] * $batchData['quantity'],
                         'status' => 'active',
                     ]);
                 }

@@ -41,91 +41,91 @@ Route::prefix('v1')->group(function () {
     });
 });
 
-Route::prefix('v1')->middleware(['auth:sanctum','check.logout'])->group(function () {
+    Route::prefix('v1')->middleware(['auth:sanctum','check.logout'])->group(function () {
 
 
-    Route::prefix('forms')->group(function () {
-        Route::get('/get-all', [FormController::class, 'index']);
-        Route::get('/get-one/{id}', [FormController::class, 'show']);
-        Route::post('/create', [FormController::class, 'store']);
-        Route::post('/update/{id}', [FormController::class, 'update']);
-         Route::delete('delete/{id}', [FormController::class, 'destroy']);
+        Route::prefix('forms')->group(function () {
+            Route::get('/get-all', [FormController::class, 'index']);
+            Route::get('/get-one/{id}', [FormController::class, 'show']);
+            Route::post('/create', [FormController::class, 'store']);
+            Route::post('/update/{id}', [FormController::class, 'update']);
+             Route::delete('delete/{id}', [FormController::class, 'destroy']);
 
-    });
+        });
 
-    Route::prefix('manufacturers')->group(function () {
-        Route::get('/get-all', [ManufacturerController::class, 'index']);
-        Route::get('/get-one/{id}', [ManufacturerController::class, 'show']);
-        Route::post('/create', [ManufacturerController::class, 'store']);
-        Route::post('/update/{id}', [ManufacturerController::class, 'update']);
-         Route::delete('delete/{id}', [ManufacturerController::class, 'destroy']);
+        Route::prefix('manufacturers')->group(function () {
+            Route::get('/get-all', [ManufacturerController::class, 'index']);
+            Route::get('/get-one/{id}', [ManufacturerController::class, 'show']);
+            Route::post('/create', [ManufacturerController::class, 'store']);
+            Route::post('/update/{id}', [ManufacturerController::class, 'update']);
+             Route::delete('delete/{id}', [ManufacturerController::class, 'destroy']);
 
-    });
+        });
 
-   Route::prefix('therapeutic-use')->group(function () {
-        Route::get('/get-all', [TherapeuticUseController::class, 'index']);
-        Route::get('/get-one/{id}', [TherapeuticUseController::class, 'show']);
-        Route::post('/create', [TherapeuticUseController::class, 'store']);
-        Route::post('/update/{id}', [TherapeuticUseController::class, 'update']);
-        Route::delete('delete/{id}', [TherapeuticUseController::class, 'destroy']);
-    });
+       Route::prefix('therapeutic-use')->group(function () {
+            Route::get('/get-all', [TherapeuticUseController::class, 'index']);
+            Route::get('/get-one/{id}', [TherapeuticUseController::class, 'show']);
+            Route::post('/create', [TherapeuticUseController::class, 'store']);
+            Route::post('/update/{id}', [TherapeuticUseController::class, 'update']);
+            Route::delete('delete/{id}', [TherapeuticUseController::class, 'destroy']);
+        });
 
-    Route::prefix('side-effect-categories')->group(function () {
-         Route::get('/get-all', [SideEffectCategoryController::class, 'index']);
-        Route::get('/get-one/{id}', [SideEffectCategoryController::class, 'show']);
-         Route::post('/create', [SideEffectCategoryController::class, 'store']);
-        Route::post('/update/{id}', [SideEffectCategoryController::class, 'update']);
-         Route::delete('delete/{id}', [SideEffectCategoryController::class, 'destroy']);
-    });
+        Route::prefix('side-effect-categories')->group(function () {
+             Route::get('/get-all', [SideEffectCategoryController::class, 'index']);
+            Route::get('/get-one/{id}', [SideEffectCategoryController::class, 'show']);
+             Route::post('/create', [SideEffectCategoryController::class, 'store']);
+            Route::post('/update/{id}', [SideEffectCategoryController::class, 'update']);
+             Route::delete('delete/{id}', [SideEffectCategoryController::class, 'destroy']);
+        });
 
-    Route::prefix('side-effect')->group(function () {
-         Route::get('/get-all', [SideEffectController::class, 'index']);
-        Route::get('/get-one/{id}', [SideEffectController::class, 'show']);
-         Route::post('/create', [SideEffectController::class, 'store']);
-        Route::post('/update/{id}', [SideEffectController::class, 'update']);
-         Route::delete('delete/{id}', [SideEffectController::class, 'destroy']);
-        Route::get('/form-options', [SideEffectController::class, 'fetchFormOptions']);
+        Route::prefix('side-effect')->group(function () {
+             Route::get('/get-all', [SideEffectController::class, 'index']);
+            Route::get('/get-one/{id}', [SideEffectController::class, 'show']);
+             Route::post('/create', [SideEffectController::class, 'store']);
+            Route::post('/update/{id}', [SideEffectController::class, 'update']);
+             Route::delete('delete/{id}', [SideEffectController::class, 'destroy']);
+            Route::get('/form-options', [SideEffectController::class, 'fetchFormOptions']);
 
-    });
+        });
 
-    Route::prefix('active-ingredient')->group(function () {
-         Route::get('/get-all', [ActiveIngredientController::class, 'index']);
-       Route::get('/get-one/{id}', [ActiveIngredientController::class, 'show']);
-         Route::post('/create', [ActiveIngredientController::class, 'store']);
-        Route::post('/update/{id}', [ActiveIngredientController::class, 'update']);
-        Route::post('/{activeIngredient}/remove-side-effect', [ActiveIngredientController::class, 'removeSideEffectFromActiveIngredient']);
-         Route::delete('delete/{id}', [ActiveIngredientController::class, 'destroy']);
-        Route::get('/form-options', [ActiveIngredientController::class, 'fetchFormOptions']);
+        Route::prefix('active-ingredient')->group(function () {
+             Route::get('/get-all', [ActiveIngredientController::class, 'index']);
+           Route::get('/get-one/{id}', [ActiveIngredientController::class, 'show']);
+             Route::post('/create', [ActiveIngredientController::class, 'store']);
+            Route::post('/update/{id}', [ActiveIngredientController::class, 'update']);
+            Route::post('/{activeIngredient}/remove-side-effect', [ActiveIngredientController::class, 'removeSideEffectFromActiveIngredient']);
+             Route::delete('delete/{id}', [ActiveIngredientController::class, 'destroy']);
+            Route::get('/form-options', [ActiveIngredientController::class, 'fetchFormOptions']);
 
-    });
+        });
 
-  Route::prefix('drugs')->group(function () {
-         Route::get('/get-all', [DrugController::class, 'index']);
-        Route::get('/get-one/{id}', [DrugController::class, 'show']);
-         Route::post('/create', [DrugController::class, 'store']);
-        Route::post('/update/{id}', [DrugController::class, 'update']);
-         Route::delete('delete/{id}', [DrugController::class, 'destroy']);
-      Route::get('/form-options', [DrugController::class, 'fetchFormOptions']);
-      // by id of drug
-      Route::get('/get-alternative/{id}', [DrugController::class, 'getAlternativeDrugById']);
-      Route::get('/get-alternative', [DrugController::class, 'getAlternativeDrugByActiveIngredients']);
+      Route::prefix('drugs')->group(function () {
+             Route::get('/get-all', [DrugController::class, 'index']);
+            Route::get('/get-one/{id}', [DrugController::class, 'show']);
+             Route::post('/create', [DrugController::class, 'store']);
+            Route::post('/update/{id}', [DrugController::class, 'update']);
+             Route::delete('delete/{id}', [DrugController::class, 'destroy']);
+          Route::get('/form-options', [DrugController::class, 'fetchFormOptions']);
+          // by id of drug
+          Route::get('/get-alternative/{id}', [DrugController::class, 'getAlternativeDrugById']);
+          Route::get('/get-alternative', [DrugController::class, 'getAlternativeDrugByActiveIngredients']);
 
-  });
+      });
 
-    Route::prefix('supplier')->group(function () {
-        Route::get('/get-one/{id}', [SupplierController::class, 'show']);
-        Route::get('/get-all', [SupplierController::class, 'index']);
-        Route::post('/create', [SupplierController::class, 'store']);
-        Route::post ('/update/{id}', [SupplierController::class, 'update']);
-        Route::delete('delete/{id}', [SupplierController::class, 'destroy']);
-    });
-     Route::prefix('purchase-invoice')->group(function () {
-        Route::get('/get-one/{id}', [PurchaseInvoiceController::class, 'show']);
-        Route::get('/get-all', [PurchaseInvoiceController::class, 'index']);
-        Route::post('/create', [PurchaseInvoiceController::class, 'store']);
-        Route::post ('/update/{id}', [PurchaseInvoiceController::class, 'update']);
-        Route::delete('delete/{id}', [PurchaseInvoiceController::class, 'destroy']);
-    });
+        Route::prefix('supplier')->group(function () {
+            Route::get('/get-one/{supplier}', [SupplierController::class, 'show']);
+            Route::get('/get-all', [SupplierController::class, 'index']);
+            Route::post('/create', [SupplierController::class, 'store']);
+            Route::post ('/update/{supplier}', [SupplierController::class, 'update']);
+            Route::delete('delete/{supplier}', [SupplierController::class, 'destroy']);
+        });
+         Route::prefix('purchase-invoice')->group(function () {
+            Route::get('/get-one/{invoice}', [PurchaseInvoiceController::class, 'show']);
+            Route::get('/get-all', [PurchaseInvoiceController::class, 'index']);
+            Route::post('/create', [PurchaseInvoiceController::class, 'store']);
+            Route::post ('/update/{invoice}', [PurchaseInvoiceController::class, 'update']);
+            Route::delete('/delete/{invoice}', [PurchaseInvoiceController::class, 'destroy']);
+        });
     Route::prefix('notification')->group(function () {
         Route::get('/get-one/{id}', [NotificationController::class, 'show']);
         Route::get('/get-all', [NotificationController::class, 'index']);

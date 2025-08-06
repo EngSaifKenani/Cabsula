@@ -21,7 +21,6 @@ return new class extends Migration
             $table->integer('quantity');
             // سعر شراء الوحدة (التكلفة)
             $table->decimal('unit_cost', 10, 2);
-            $table->decimal('unit_price', 10, 2);
             // السعر الإجمالي لهذا الصنف (الكمية * سعر الوحدة)
             $table->decimal('total', 10, 2);
             $table->timestamps();

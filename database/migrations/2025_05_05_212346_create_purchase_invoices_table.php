@@ -15,8 +15,9 @@ return new class extends Migration
             $table->id();
             // رقم الفاتورة الخاص بالمورد، ويفضل أن يكون فريداً
             $table->string('invoice_number')->unique();
+            $table->date('invoice_date')->nullable();
             // الربط مع جدول الموردين (تأكد من وجود جدول 'suppliers')
-            $table->foreignId('supplier_id')->constrained('suppliers')->onDelete('restrict');
+            $table->foreignId('supplier_id')->nullable()->constrained('suppliers')->onDelete('set null');
             // الإجمالي الفرعي (مجموع أسعار الأصناف قبل الضريبة والخصم)
             $table->decimal('subtotal', 12, 2);
             // قيمة الخصم على الفاتورة
