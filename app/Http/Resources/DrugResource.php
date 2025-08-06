@@ -18,7 +18,7 @@ class DrugResource extends JsonResource
            'name' => $this->name,
            'description' => $this->description,
            'admin_notes' => $this->when(auth()->user()->isPharmacist()||auth()->user()->isAdmin(), $this->admin_notes),
-           'image_url' => $this->image ? asset('storage/' . $this->image) : null,
+           'image_url' => $this->image ? '/storage/' . $this->image : null,
            'total_sold' => $this->when(auth()->user()->isAdmin(), $this->total_sold),
 
            'is_requires_prescription' => $this->is_requires_prescription,

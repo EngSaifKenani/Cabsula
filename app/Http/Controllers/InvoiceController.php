@@ -115,7 +115,7 @@ class InvoiceController extends Controller
 
                             // إخفاء تكلفة الدفعة إذا كانت محملة
                             if ($item->relationLoaded('batch')) {
-                                unset($item->batch->cost);
+                                unset($item->batch->unit_cost);
                             }
                         }
                     }
@@ -186,23 +186,21 @@ class InvoiceController extends Controller
             $batch = \App\Models\Batch::findOrFail($item['batch_id']);
             $quantity = $item['quantity'];
 
-            $cost = $batch->cost * $quantity;
-            $price = $batch->price * $quantity;
-            $profit = ( $batch->price - $batch->cost) * $quantity;
+            $cost = $batch->unit_cost * $quantity;
+            $price = $batch->unit_price * $quantity;
+            $profit = ( $batch->unit_price - $batch->unit_cost) * $quantity;
 
             $invoice->items()->create([
                 'drug_id' => $item['drug_id'],
                 'batch_id' => $batch->id,
                 'quantity' => $item['quantity'],
-                'cost' => $batch->cost * $item['quantity'], // السعر من الدفعة
-                'price' => $batch->price * $item['quantity'], // السعر من الدفعة
-                'profit_amount' => ($batch->price - $batch->cost) * $item['quantity'],
+                'cost' => $batch->unit_cost * $item['quantity'], // السعر من الدفعة
+                'price' => $batch->unit_price * $item['quantity'], // السعر من الدفعة
+                'profit_amount' => ($batch->unit_price - $batch->unit_cost) * $item['quantity'],
             ]);
 
             // خصم من المخزون وزيادة في الكميات المباعة
             $batch->decrement('stock', $quantity);
-            $batch->increment('sold', $quantity);
-            //$drug->increment('total_sold', $quantity);
             //observer بزيد لحالو
             $totalCost += $cost;
             $totalPrice += $price;
@@ -225,7 +223,7 @@ class InvoiceController extends Controller
                 unset($item->cost, $item->profit_amount);
 
                 if ($item->relationLoaded('batch')) {
-                    unset($item->batch->cost);
+                    unset($item->batch->unit_cost);
                 }
             }
         }
@@ -263,7 +261,7 @@ class InvoiceController extends Controller
 
                     // إذا كانت الدفعة محملة، قم بإخفاء حقل التكلفة منها
                     if ($item->relationLoaded('batch')) {
-                        unset($item->batch->cost);
+                        unset($item->batch->unit_cost);
                     }
                 }
             }
@@ -320,7 +318,6 @@ class InvoiceController extends Controller
 
                     if ($batch) {
                         $batch->increment('stock', $item->quantity);
-                        $batch->decrement('sold', $item->quantity);
                     }
                     // Observer الخاص بـ InvoiceItem سيتعامل مع Drug::total_sold
                 }

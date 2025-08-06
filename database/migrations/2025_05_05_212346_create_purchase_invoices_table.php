@@ -15,7 +15,6 @@ return new class extends Migration
             $table->id();
             // رقم الفاتورة الخاص بالمورد، ويفضل أن يكون فريداً
             $table->string('invoice_number')->unique();
-            $table->date('invoice_date');
             // الربط مع جدول الموردين (تأكد من وجود جدول 'suppliers')
             $table->foreignId('supplier_id')->constrained('suppliers')->onDelete('restrict');
             // الإجمالي الفرعي (مجموع أسعار الأصناف قبل الضريبة والخصم)
@@ -25,7 +24,7 @@ return new class extends Migration
             // المبلغ الإجمالي النهائي بعد الخصم
             $table->decimal('total', 12, 2);
             // حالة الفاتورة (مسودة، مكتملة، ملغاة)
-            $table->enum('status', ['draft', 'completed', 'cancelled'])->default('draft');
+            $table->enum('status', ['unpaid', 'partially paid', 'paid'])->default('Paid');
             $table->text('notes')->nullable();
             // الربط مع المستخدم الذي قام بإدخال الفاتورة (تأكد من وجود جدول 'users')
             $table->foreignId('user_id')->constrained('users')->onDelete('restrict');

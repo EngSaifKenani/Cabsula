@@ -27,6 +27,9 @@ class Manufacturer extends Model
         return $this->hasMany(WeeklyManufacturerReport::class);
     }
 
-
+    public function suppliers()
+    {
+        return $this->belongsToMany(Supplier::class, 'manufacturer_supplier');
+    }
 
 }

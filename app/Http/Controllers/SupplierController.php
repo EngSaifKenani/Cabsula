@@ -2,116 +2,86 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreSupplierRequest;
+use App\Http\Requests\UpdateSupplierRequest;
 use App\Models\Supplier;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 
 class SupplierController extends Controller
 {
     use ApiResponse;
 
-    /**
-     * Display a listing of the resource.
-     */
     public function index(Request $request)
     {
         $query = Supplier::query();
 
-        // Search by name
         if ($request->filled('search')) {
-            $query->where('name', 'like', '%' . $request->search . '%');
+            $searchTerm = '%' . $request->search . '%';
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('name', 'like', $searchTerm)
+                    ->orWhere('email', 'like', $searchTerm)
+                    ->orWhere('phone', 'like', $searchTerm);
+            });
         }
 
-        $suppliers = $query->latest()->paginate(15);
+        // Eager load the manufacturers for each supplier
+        $suppliers = $query->with('manufacturers')->latest()->paginate(15);
         return $this->success($suppliers, 'تم جلب الموردين بنجاح');
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    // Use the Form Request for validation
+    public function store(StoreSupplierRequest $request)
     {
-        try {
-            $validatedData = $request->validate([
-                'name' => 'required|string|max:255',
-                'email' => 'nullable|email|max:255|unique:suppliers,email',
-                'phone' => 'nullable|string|max:20',
-                'contact_person' => 'nullable|string|max:255',
-                'note' => 'nullable|string',
-                'address' => 'nullable|string',
-                'is_active' => 'boolean',
-                'tax_number' => 'nullable|string|max:255',
-                'commercial_register' => 'nullable|string|max:255',
-            ]);
-        } catch (ValidationException $e) {
-            return $this->error($e->errors(), 422);
-        }
+        $validatedData = $request->validated();
+
+        $manufacturerIds = $validatedData['manufacturer_ids'];
+        unset($validatedData['manufacturer_ids']);
 
         $supplier = Supplier::create($validatedData);
-        return $this->success($supplier, 'تم إنشاء المورد بنجاح', 201);
+
+        $supplier->manufacturers()->sync($manufacturerIds);
+
+        return $this->success($supplier->load('manufacturers'), 'تم إنشاء المورد بنجاح', 201);
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function
-    show($id)
+    // Use Route Model Binding
+    public function show(Supplier $supplier)
     {
-        $supplier = Supplier::find($id);
-        if (!$supplier) {
-            return $this->error('المورد غير موجود', 404);
-        }
+        $supplier->load('manufacturers', 'purchaseInvoices');
         return $this->success($supplier, 'تم جلب المورد بنجاح');
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, $id)
+    public function update(UpdateSupplierRequest $request, Supplier $supplier)
     {
-        $supplier = Supplier::find($id);
-        if (!$supplier) {
-            return $this->error('المورد غير موجود', 404);
-        }
+        // The request is already validated by UpdateSupplierRequest
+        $validatedData = $request->validated();
 
-        try {
-                $validatedData = $request->validate([
-                    'name' => 'sometimes|required|string|max:255',
-                    'email' => ['nullable', 'email', 'max:255', Rule::unique('suppliers')->ignore($supplier->id)],
-                    'phone' => 'nullable|string|max:20',
-                    'contact_person' => 'nullable|string|max:255',
-                    'note' => 'nullable|string',
-                    'address' => 'nullable|string',
-                    'is_active' => 'boolean',
-                    'tax_number' => 'nullable|string|max:255',
-                    'commercial_register' => 'nullable|string|max:255',
-                ]);
-        } catch (ValidationException $e) {
-            return $this->error($e->errors(), 422);
+        if (isset($validatedData['manufacturer_ids'])) {
+            $manufacturerIds = $validatedData['manufacturer_ids'];
+            unset($validatedData['manufacturer_ids']);
+
+            $supplier->manufacturers()->sync($manufacturerIds);
         }
 
         $supplier->update($validatedData);
-        return $this->success($supplier, 'تم تحديث المورد بنجاح');
+
+        return $this->success($supplier->load('manufacturers'), 'تم تحديث المورد بنجاح');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy($id)
+    public function destroy(Supplier $supplier)
     {
-        $supplier = Supplier::withCount('purchaseInvoices')->find($id);
-        if (!$supplier) {
-            return $this->error('المورد غير موجود', 404);
-        }
-
-        // Prevent deletion if the supplier has associated invoices
-        if ($supplier->purchase_invoices_count > 0) {
+        // Check if the supplier has any related purchase invoices
+        if ($supplier->purchaseInvoices()->exists()) {
             return $this->error('لا يمكن حذف المورد لوجود فواتير مرتبطة به', 409); // 409 Conflict
         }
 
+        // Before deleting the supplier, detach all manufacturer relationships from the pivot table
+        $supplier->manufacturers()->detach();
+
+        // Now, delete the supplier
         $supplier->delete();
+
         return $this->success(null, 'تم حذف المورد بنجاح');
     }
 }

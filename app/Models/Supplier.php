@@ -43,4 +43,9 @@ class Supplier extends Model
     {
         return $this->hasMany(PurchaseInvoice::class);
     }
+
+    public function manufacturers()
+    {
+        return $this->belongsToMany(Manufacturer::class, 'manufacturer_supplier');
+    }
 }
