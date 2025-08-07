@@ -112,26 +112,31 @@ Route::prefix('v1')->group(function () {
 
       });
 
-        Route::prefix('supplier')->group(function () {
+        Route::prefix('suppliers')->group(function () {
             Route::get('/get-one/{supplier}', [SupplierController::class, 'show']);
             Route::get('/get-all', [SupplierController::class, 'index']);
             Route::post('/create', [SupplierController::class, 'store']);
             Route::post ('/update/{supplier}', [SupplierController::class, 'update']);
             Route::delete('delete/{supplier}', [SupplierController::class, 'destroy']);
         });
-         Route::prefix('purchase-invoice')->group(function () {
+                Route::prefix('purchase-invoices')->group(function () {
             Route::get('/get-one/{invoice}', [PurchaseInvoiceController::class, 'show']);
             Route::get('/get-all', [PurchaseInvoiceController::class, 'index']);
             Route::post('/create', [PurchaseInvoiceController::class, 'store']);
             Route::post ('/update/{invoice}', [PurchaseInvoiceController::class, 'update']);
             Route::delete('/delete/{invoice}', [PurchaseInvoiceController::class, 'destroy']);
         });
-    Route::prefix('notification')->group(function () {
+    Route::prefix('notifications')->group(function () {
         Route::get('/get-one/{id}', [NotificationController::class, 'show']);
         Route::get('/get-all', [NotificationController::class, 'index']);
         Route::post('/create', [NotificationController::class, 'store']);
         Route::post ('/update/{id}', [NotificationController::class, 'update']);
         Route::delete('delete/{id}', [NotificationController::class, 'destroy']);
+
+        Route::get('/unread-count', [NotificationController::class, 'unreadCount']);
+        Route::post('/mark-all-as-read', [NotificationController::class, 'markAllAsRead']);
+        Route::post('/{notification}/read', [NotificationController::class, 'markAsRead']);
+
     });
     Route::prefix('recommended-dosage')->group(function () {
          Route::get('/get-all', [RecommendedDosageController::class, 'index']);

@@ -24,13 +24,20 @@ class NotificationController extends Controller
      */
     function show($notification_id)
     {
-        // This single line handles both finding the notification and authorization.
-        // It searches for the notification ONLY within the collection belonging to the authenticated user.
-        // If it's not found (either because it doesn't exist or doesn't belong to the user),
-        // Laravel will automatically return a 404 Not Found response, which acts as a "forbidden" response.
+        // Find the notification, ensuring it belongs to the authenticated user.
         $notification = auth()->user()->notifications()->findOrFail($notification_id);
 
-        // If the notification is found, return it using your existing success method.
+        // Check if the notification is unread (pivot->read_at is null).
+        if (is_null($notification->pivot->read_at)) {
+            // Mark it as read by updating the pivot table.
+            auth()->user()->notifications()->updateExistingPivot($notification->id, [
+                'read_at' => now()
+            ]);
+            // Refresh the model to get the updated pivot data in the response.
+            $notification->refresh();
+        }
+
+        // If the notification is found, return it.
         return $this->success($notification);
     }
 
@@ -62,6 +69,43 @@ class NotificationController extends Controller
         }
 
         return $this->success($notification, 'Notification created successfully.');
+    }
+
+    public function unreadCount()
+    {
+        $count = auth()->user()->notifications()->wherePivot('read_at', null)->count();
+
+        return $this->success(['unread_count' => $count], 'Unread notification count fetched successfully.');
+    }
+
+    public function markAsRead(Notification $notification)
+    {
+        // Find the specific notification for the user where it's still unread.
+        $userNotification = auth()->user()->notifications()
+            ->where('notification_id', $notification->id)
+            ->wherePivot('read_at', null)
+            ->first();
+
+        // If it exists and is unread, update the pivot table.
+        if ($userNotification) {
+            auth()->user()->notifications()->updateExistingPivot($notification->id, [
+                'read_at' => now()
+            ]);
+        }
+
+        return $this->success(null, 'Notification marked as read.');
+    }
+
+    /**
+     * Mark all unread notifications as read for the authenticated user.
+     */
+    public function markAllAsRead()
+    {
+        auth()->user()->notifications()->wherePivot('read_at', null)->update([
+            'notification_user.read_at' => now()
+        ]);
+
+        return $this->success(null, 'All notifications marked as read.');
     }
 
 }

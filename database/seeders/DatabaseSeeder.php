@@ -29,6 +29,7 @@ class DatabaseSeeder extends Seeder
           //  DrugSeeder::class,
             ManufacturerReportSeeder::class,
             PurchaseSeeder::class,
+            NotificationSeeder::class,
 
 
         ]);

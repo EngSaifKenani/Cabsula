@@ -44,7 +44,12 @@ class User extends Authenticatable
     public function notifications()
     {
         return $this->belongsToMany(Notification::class, 'notification_user')
-            ->withPivot('isRead') ;
+            // Tell Eloquent to also retrieve the 'read_at' column from the pivot table.
+            ->withPivot('read_at')
+            // This is good practice to automatically manage created_at/updated_at on the pivot table.
+            ->withTimestamps()
+            // Order by the newest notifications first.
+            ->orderByPivot('created_at', 'desc');
     }
 
 
