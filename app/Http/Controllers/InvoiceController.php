@@ -12,9 +12,31 @@ use Illuminate\Support\Facades\DB;
 
 class InvoiceController extends Controller
 {
-        public function index(Request $request)
-        {
-            $user = auth()->user();
+    public function index(Request $request)
+    {
+        // التحقق من المدخلات
+        $request->validate([
+            'user_id'         => 'nullable|integer|exists:users,id',
+            'invoice_number'  => 'nullable|string|max:255',
+            'min_total_price' => 'nullable|numeric|min:0',
+            'max_total_price' => 'nullable|numeric|min:0',
+            'on_date'         => 'nullable|date_format:Y-m-d',
+            'from_date'       => 'nullable|date_format:Y-m-d',
+            'to_date'         => 'nullable|date_format:Y-m-d|after_or_equal:from_date',
+            'page'            => 'nullable|integer|min:1',
+        ], [
+            'user_id.integer'        => 'معرف المستخدم يجب أن يكون رقمًا صحيحًا.',
+            'user_id.exists'         => 'المستخدم غير موجود.',
+            'invoice_number.string'  => 'رقم الفاتورة يجب أن يكون نصًا.',
+            'min_total_price.numeric'=> 'أدنى سعر يجب أن يكون رقمًا.',
+            'max_total_price.numeric'=> 'أعلى سعر يجب أن يكون رقمًا.',
+            'on_date.date_format'    => 'صيغة تاريخ on_date يجب أن تكون YYYY-MM-DD.',
+            'from_date.date_format'  => 'صيغة تاريخ from_date يجب أن تكون YYYY-MM-DD.',
+            'to_date.date_format'    => 'صيغة تاريخ to_date يجب أن تكون YYYY-MM-DD.',
+            'to_date.after_or_equal' => 'تاريخ النهاية يجب أن يكون مساوي أو بعد تاريخ البداية.',
+        ]);
+
+        $user = auth()->user();
 
             // تحميل الفواتير مع عناصرها، الأدوية، الدفعات، والمستخدم
             // 'items.drug' و 'items.batch' ضروريان لإخفاء البيانات الحساسة لاحقاً
@@ -142,31 +164,10 @@ class InvoiceController extends Controller
         $request->validate([
             'items' => 'required|array',
             'items.*.drug_id' => 'required|exists:drugs,id',
-            'items.*.batch_id' => 'required|exists:batches,id',
             'items.*.quantity' => 'required|integer|min:1',
         ]);
 
         $items = $request->items;
-
-        foreach ($items as $item) {
-            $drug = Drug::find($item['drug_id']);
-            $batch = Batch::find($item['batch_id']);
-
-            if (!$drug || !$batch) {
-                return response()->json(['error' => "الدواء أو الدفعة غير موجودة"], 404);
-            }
-
-            if ($batch->drug_id !== $drug->id) {
-                return response()->json(['error' => "الدفعة لا تتبع الدواء المحدد: {$drug->name}"], 400);
-            }
-
-            if ($batch->stock < $item['quantity']) {
-                return response()->json([
-                    'error' => "الكمية غير كافية في الدفعة للدواء: {$drug->name}",
-                    'available_stock' => $batch->stock
-                ], 400);
-            }
-        }
 
         $lastId = Invoice::max('id') ?? 0;
         $invoiceNumber = 'INV-' . str_pad($lastId + 1, 6, '0', STR_PAD_LEFT);
@@ -183,30 +184,57 @@ class InvoiceController extends Controller
 
         foreach ($items as $item) {
             $drug = Drug::findOrFail($item['drug_id']);
-            $batch = \App\Models\Batch::findOrFail($item['batch_id']);
-            $quantity = $item['quantity'];
+            $quantityNeeded = $item['quantity'];
 
-            $cost = $batch->unit_cost * $quantity;
-            $price = $batch->unit_price * $quantity;
-            $profit = ( $batch->unit_price - $batch->unit_cost) * $quantity;
+            // جلب أقدم الدفعات التي تتبع الدواء ولديها مخزون
+            $batches = Batch::where('drug_id', $drug->id)
+                ->where('stock', '>', 0)
+                ->orderBy('created_at', 'asc') // أو orderBy('expiry_date', 'asc') إذا تريد حسب تاريخ الانتهاء
+                ->get();
 
-            $invoice->items()->create([
-                'drug_id' => $item['drug_id'],
-                'batch_id' => $batch->id,
-                'quantity' => $item['quantity'],
-                'cost' => $batch->unit_cost * $item['quantity'], // السعر من الدفعة
-                'price' => $batch->unit_price * $item['quantity'], // السعر من الدفعة
-                'profit_amount' => ($batch->unit_price - $batch->unit_cost) * $item['quantity'],
-            ]);
+            if ($batches->isEmpty()) {
+                return response()->json([
+                    'error' => "لا يوجد أي دفعات متاحة لهذا الدواء: {$drug->name}"
+                ], 400);
+            }
 
-            // خصم من المخزون وزيادة في الكميات المباعة
-            $batch->decrement('stock', $quantity);
-            //observer بزيد لحالو
-            $totalCost += $cost;
-            $totalPrice += $price;
-            $totalProfit += $profit;
+            foreach ($batches as $batch) {
+                if ($quantityNeeded <= 0) break;
+
+                $deductQuantity = min($batch->stock, $quantityNeeded);
+
+                $cost = $batch->unit_cost * $deductQuantity;
+                $price = $batch->unit_price * $deductQuantity;
+                $profit = ($batch->unit_price - $batch->unit_cost) * $deductQuantity;
+
+                // إضافة العنصر إلى الفاتورة
+                $invoice->items()->create([
+                    'drug_id' => $drug->id,
+                    'batch_id' => $batch->id,
+                    'quantity' => $deductQuantity,
+                    'cost' => $cost,
+                    'price' => $price,
+                    'profit_amount' => $profit,
+                ]);
+
+                // خصم من المخزون
+                $batch->decrement('stock', $deductQuantity);
+
+                // جمع الإجماليات
+                $totalCost += $cost;
+                $totalPrice += $price;
+                $totalProfit += $profit;
+
+                $quantityNeeded -= $deductQuantity;
+            }
+
+            // إذا لم نتمكن من تغطية الكمية المطلوبة
+            if ($quantityNeeded > 0) {
+                return response()->json([
+                    'error' => "الكمية المطلوبة أكبر من المخزون المتاح للدواء: {$drug->name}"
+                ], 400);
+            }
         }
-
 
         $invoice->update([
             'total_cost' => $totalCost,
@@ -218,10 +246,8 @@ class InvoiceController extends Controller
 
         if (auth()->user()->role !== 'admin') {
             unset($invoice->total_cost, $invoice->total_profit);
-
             foreach ($invoice->items as $item) {
                 unset($item->cost, $item->profit_amount);
-
                 if ($item->relationLoaded('batch')) {
                     unset($item->batch->unit_cost);
                 }
@@ -233,7 +259,6 @@ class InvoiceController extends Controller
             'invoice' => $invoice
         ]);
     }
-
 
 
     /**
