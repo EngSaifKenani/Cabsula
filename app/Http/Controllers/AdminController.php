@@ -19,7 +19,7 @@ class AdminController extends Controller
     {
         $pharmacist = User::where('id', $id)
             ->where('role', 'pharmacist')
-            ->select(['id', 'name', 'email', 'phone_number', 'address', 'created_at'])
+            ->select(['id', 'name', 'email', 'phone_number', 'address', 'created_at','image'])
             ->first();
 
         if (!$pharmacist) {
@@ -34,9 +34,10 @@ class AdminController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
-            'password' => 'required|string|min:3|confirmed',
-         //   'phone_number' => 'required|string|max:20',
-          //  'address' => 'required|string|max:500'
+            'password' => 'required|string|min:3|',//confirmed',
+             'phone_number' => 'nullable|string|max:20',
+            'address' => 'nullable|string|max:500',
+            'image' => 'required|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
         ]);
 
         $user = User::create([
@@ -44,8 +45,9 @@ class AdminController extends Controller
             'email' => $request->input('email'),
             'password' => Hash::make($request->input('password')),
             'role' => 'pharmacist',
-          //  'phone_number' => $request->input('phone_number'),
-           // 'address' => $request->input('address')
+            'phone_number' => $request->input('phone_number'),
+            'address' => $request->input('address'),
+            'image' => $request->input('image'),
         ]);
 
         return $this->success([
@@ -68,13 +70,14 @@ class AdminController extends Controller
                 'sometimes',
                 'email',
                 Rule::unique('users')->ignore($pharmacist->id)
-            ],            'phone_number' => 'sometimes|string|max:20',
-            'address' => 'sometimes|string|max:500'
+            ],
+            'phone_number' => 'sometimes|string|max:20',
+            'address' => 'sometimes|string|max:500',
+            'password' => 'sometimes|string|min:3',
+            'image'=>'sometimes|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
         ]);
 
-        $pharmacist->update($request->only([
-            'name', 'email', 'phone_number', 'address'
-        ]));
+        $pharmacist->update([$request]);
 
         return $this->success($pharmacist);
     }

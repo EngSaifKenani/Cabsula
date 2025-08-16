@@ -6,6 +6,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BatchController;
 use App\Http\Controllers\DrugController;
 use App\Http\Controllers\FormController;
+use App\Http\Controllers\InventoryCountController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\ManufacturerController;
 use App\Http\Controllers\NotificationController;
@@ -168,17 +169,20 @@ Route::prefix('v1')->group(function () {
     Route::post('/invoices', [InvoiceController::class, 'store']);
     Route::delete('/invoices/{id}', [InvoiceController::class, 'destroy']);
     Route::delete('/invoices', [InvoiceController::class, 'destroy']);
+    Route::get('/dashboard/statistics', [\App\Http\Controllers\DashboardController::class, 'index']);
 
 
 
 
-    Route::middleware('auth:sanctum')->post('/reports/update', [ManufacturerController::class, 'updateReports']);
+ //   Route::middleware('auth:sanctum')->post('/reports/update', [ManufacturerController::class, 'updateReports']);
 
     //GET /api/reports/weekly?manufacturer_id=3&year=2025
-    Route::get('/reports/weekly', [ManufacturerController::class, 'weeklyReports']);
+   // Route::get('/reports/weekly', [ManufacturerController::class, 'weeklyReports']);
 
     //GET /api/reports/monthly?manufacturer_id=3&year=2025
-    Route::get('/reports/monthly', [ManufacturerController::class, 'monthlyReports']);
+  //  Route::get('/reports/monthly', [ManufacturerController::class, 'monthlyReports']);
+
+    Route::apiResource('inventory-counts', InventoryCountController::class);
 
 });
 

@@ -192,5 +192,10 @@ class   Drug extends Model
         return $this->expiry_date <= now();
     }
 
+    public function getTotalStockAttribute()
+    {
+        return $this->batches()->sum('stock');
+    }
+
 
 }

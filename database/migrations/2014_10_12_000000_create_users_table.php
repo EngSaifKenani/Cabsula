@@ -17,12 +17,12 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
-            $table->enum('role', ['admin', 'pharmacist', 'customer'])->default('customer');
-            $table->string('profile_image')->nullable();
+            $table->enum('role', ['admin', 'pharmacist'])->default('pharmacist');
             $table->text('bio')->nullable();
-            $table->string('phone_number')->nullable();
+            $table->string('phone_number')->unique()->nullable();
             $table->enum('gender', ['male', 'female'])->nullable();
             $table->text('address')->nullable();
+            $table->string('image')->nullable();
 
             $table->rememberToken();
             $table->timestamp('last_force_logout')->nullable();

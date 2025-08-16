@@ -35,12 +35,10 @@ class AuthController extends Controller
                 'confirmed',
                 Password::min(3)
             ],
-            'phone_number' => 'nullable|string|max:20',
-            //'gender' => 'nullable|in:male,female',
+            'phone_number' => 'nullable|string|max:20|unique:users,phone_number',
+            'gender' => 'nullable|in:male,female',
            // 'address' => 'nullable|string|max:255',
            // 'bio' => 'nullable|string|max:500',
-            'fcm_token' => 'sometimes|string',
-            'platform' => 'sometimes|in:android,ios,web'
         ]);
 
         $user = User::create([
@@ -48,10 +46,8 @@ class AuthController extends Controller
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'phone_number' => $validated['phone_number'] ?? null,
-           // 'gender' => $validated['gender'] ?? null,
-           // 'profile_image' => $validated['profile_image'] ?? null,
-           // 'bio' => $validated['bio'] ?? null,
-            'role' => 'customer'
+            'gender' => $validated['gender'] ?? null,
+            'role' => 'admin',
         ]);
 
 
@@ -65,7 +61,7 @@ class AuthController extends Controller
             );
         }
         return response([
-            'user' => $user->only(['id', 'name', 'email', 'role', 'phone_number']),
+            'user' => $user->only(['id', 'name', 'email', 'role', 'phone_number','image']),
             'token' => $user->createToken($user->email)->plainTextToken
         ], 201);
     }
@@ -76,7 +72,7 @@ class AuthController extends Controller
             'email' => 'required|email',
             'password' => 'required|string',
             'fcm_token' => 'sometimes|string',
-            'platform' => 'sometimes|in:android,ios,web'
+            'platform' => 'sometimes|in:android,ios,web',
         ]);
 
         if (!Auth::attempt($request->only('email', 'password'))) {
@@ -102,7 +98,7 @@ class AuthController extends Controller
         }
 
         return response([
-            'user' => $user->only(['id', 'name', 'email', 'role', 'phone_number']),
+            'user' => $user->only(['id', 'name', 'email', 'role', 'phone_number','image']),
             'token' => $user->createToken($user->email)->plainTextToken
         ], 200);
     }
@@ -169,8 +165,8 @@ class AuthController extends Controller
     {
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
-           // 'email' => 'sometimes|email|unique:users,email,' . auth()->id(),
-          //  'phone_number' => 'sometimes|string|max:20',
+            'email' => 'sometimes|email|unique:users,email,' . auth()->id(),
+           'phone_number' => 'sometimes|string|max:20',
             'gender' => 'sometimes|in:male,female',
             'address' => 'sometimes|string|max:255',
             'profile_image' => 'sometimes|image|mimes:jpeg,png,ico,jpg,gif,svg|max:2048',
