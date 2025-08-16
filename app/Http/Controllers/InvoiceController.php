@@ -30,15 +30,19 @@ class InvoiceController extends Controller
 
         $user = auth()->user();
 
-        // استعلام الفواتير الأساسي
+        // استعلام الفواتير الأساسي مع العلاقات
         $query = Invoice::with(['items.drug', 'items.batch', 'user']);
 
-        // فلترة حسب حالة الفاتورة
+        // دعم الفواتير الملغاة عبر SoftDeletes
         if ($request->boolean('canceled_only')) {
-            $query->where('status', 'canceled');
-        } elseif (!$request->boolean('include_canceled')) {
-            // استبعاد الفواتير الملغاة إذا لم يطلب تضمينها
-            $query->where('status', 'active');
+            // جلب الفواتير الملغاة فقط
+            $query = $query->onlyTrashed();
+        } elseif ($request->boolean('include_canceled')) {
+            // جلب كل الفواتير، نشطة وملغاة
+            $query = $query->withTrashed();
+        } else {
+            // جلب الفواتير النشطة فقط
+            $query = $query->where('status', 'active');
         }
 
         // فلترة حسب دور المستخدم
@@ -76,15 +80,13 @@ class InvoiceController extends Controller
             $query->whereDate('created_at', '<=', Carbon::parse($toDate)->endOfDay());
         }
 
-        // جلب جميع الفواتير المفلترة لحساب الإجماليات
+        // جلب كل الفواتير المفلترة لحساب الإجماليات
         $allFilteredInvoices = $query->orderBy('created_at', 'desc')->get();
 
         // حساب الإجماليات الصافية فقط للفواتير النشطة
-        $netTotalCost = 0;
-        $netTotalPrice = 0;
-        $netTotalProfit = 0;
+        $netTotalCost = $netTotalPrice = $netTotalProfit = 0;
         foreach ($allFilteredInvoices as $invoice) {
-            if ($invoice->status === 'active') {
+            if (!$invoice->trashed() && $invoice->status === 'active') {
                 $netTotalCost += $invoice->total_cost;
                 $netTotalPrice += $invoice->total_price;
                 $netTotalProfit += $invoice->total_profit;
@@ -104,13 +106,13 @@ class InvoiceController extends Controller
             ['path' => $request->url(), 'query' => $request->query()]
         );
 
-        // إخفاء المعلومات الحساسة إذا لم يكن المستخدم مشرفًا
+        // إخفاء المعلومات الحساسة إذا لم يكن المستخدم أدمن
         if ($user->role !== 'admin') {
-            $netTotalCost = null;
-            $netTotalProfit = null;
+            $netTotalCost = $netTotalProfit = null;
 
             foreach ($paginatedInvoices as $invoice) {
                 unset($invoice->total_cost, $invoice->total_profit);
+
                 if ($invoice->relationLoaded('items')) {
                     foreach ($invoice->items as $item) {
                         unset($item->cost, $item->profit_amount);
