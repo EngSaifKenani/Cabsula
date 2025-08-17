@@ -17,11 +17,10 @@ return new class extends Migration
 
             $table->string('name');
             $table->text('description')->nullable();
-            $table->integer('total_sold')->default(0);
             $table->boolean('is_requires_prescription')->default(false);
             $table->string('image')->nullable();
             $table->text('admin_notes')->nullable();
-
+            $table->string('barcode')->unique()->nullable(); // <-- هذا هو الحقل الجديد
             $table->foreignId('form_id')->nullable()->constrained()->onDelete('set null');
             $table->foreignId('manufacturer_id')->nullable()->constrained()->onDelete('set null');
             $table->foreignId('recommended_dosage_id')->nullable()->constrained('recommended_dosages')->onDelete('set null');

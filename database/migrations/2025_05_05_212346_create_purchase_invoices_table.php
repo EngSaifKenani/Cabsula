@@ -28,7 +28,7 @@ return new class extends Migration
             $table->enum('status', ['unpaid', 'partially paid', 'paid'])->default('Paid');
             $table->text('notes')->nullable();
             // الربط مع المستخدم الذي قام بإدخال الفاتورة (تأكد من وجود جدول 'users')
-            $table->foreignId('user_id')->constrained('users')->onDelete('set null');
+            $table->foreignId('user_id')->nullable()->constrained('users')->onDelete('set null');
             $table->timestamps();
             $table->softDeletes(); // لإضافة الحذف الناعم
         });

@@ -13,7 +13,6 @@ use App\Models\Drug;
 use App\Models\Form;
 use App\Models\Manufacturer;
 use App\Models\RecommendedDosage;
-use App\Models\Translation;
 use App\Services\TranslationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -34,31 +33,27 @@ class DrugController extends Controller
 
     public function index(Request $request)
     {
-        /*   $perPage = 10;
-           $currentPage = $request->query('page', 1);
-           $offset = ($currentPage - 1) * $perPage;
-           $total = Drug::count();
-           $totalPages = ceil($total / $perPage);*/
-
-        /*            $validRelations = $this->extractValidRelations(Drug::class, $request);*/
-        $drugs = Drug::/*skip($offset)->take($perPage)->*//*with($validRelations)->*/
-        with('validBatches')
-            ->select('id','name','description','image','is_requires_prescription')
-            /*  ->with(['activeIngredients' => function($query) {
-              $query->select('active_ingredients.id', 'scientific_name');
-          }])*/
+        $drugs = Drug::with('validBatches')
+            ->select('id','name','description','image','is_requires_prescription', 'barcode')
             ->paginate(10);
 
         return $this->success(new DrugCollection($drugs));
     }
 
-    public function show(Request $request, $id)
+    public function show(Request $request, $identifier)
     {
         $validRelations = $this->extractValidRelations(Drug::class, $request);
-        $drug= Drug::with(array_merge($validRelations, [
+
+        $drug = Drug::with(array_merge($validRelations, [
             'activeIngredients:id,scientific_name',
             'validBatches'
-        ]))->findOrFail($id);
+        ]))
+            ->where(function ($query) use ($identifier) {
+                $query->where('id', $identifier)
+                    ->orWhere('barcode', $identifier);
+            })
+            ->firstOrFail();
+
         return $this->success(new DrugResource($drug));
     }
 
@@ -67,6 +62,7 @@ class DrugController extends Controller
         $request->validate([
             'name' => 'required|string|max:255|unique:drugs',
             'description' => 'nullable|string',
+            'barcode' => 'required|string|unique:drugs,barcode', // <<-- تعديل هنا
             'image' => 'required|image|mimes:jpeg,png,jpg|max:2048',
             'is_requires_prescription' => 'boolean',
             'admin_notes' => 'nullable|string',
@@ -92,6 +88,7 @@ class DrugController extends Controller
                 'description' => $request->description,
                 'image' => $imagePath,
                 'is_requires_prescription' => $request['is_requires_prescription'] ?? false,
+                'barcode'=>$request['barcode'],
                 'admin_notes' => $request['admin_notes'],
                 'form_id' => $request['form_id'],
                 'manufacturer_id' => $request['manufacturer_id'],
@@ -150,7 +147,6 @@ class DrugController extends Controller
     {
         $drug = Drug::findOrFail($id);
 
-
         $request->validate([
             'name' => [
                 'sometimes',
@@ -159,6 +155,11 @@ class DrugController extends Controller
                 Rule::unique('drugs')->ignore($drug->id)
             ],
             'description' => 'nullable|string',
+            'barcode' => [ // <<-- تعديل هنا
+                'sometimes',
+                'string',
+                Rule::unique('drugs')->ignore($drug->id)
+            ],
             'image' => 'sometimes|image|mimes:jpeg,png,jpg|max:2048',
             'is_requires_prescription' => 'boolean',
             'admin_notes' => 'sometimes|string',
@@ -174,9 +175,6 @@ class DrugController extends Controller
             'translations.*.name' => 'required|string|max:255',
         ]);
 
-
-
-
         $imagePath=null;
         if ($request->hasFile('image')) {
             if ($drug->image) {
@@ -186,18 +184,9 @@ class DrugController extends Controller
         }
 
         $sourceLocale = 'en';
-        $drug = DB::transaction(function () use ( $imagePath,$sourceLocale, $drug, $request, $translationService) {
+        DB::transaction(function () use ( $imagePath,$sourceLocale, $drug, $request, $translationService) {
 
-            $drug->update([
-                'name' => $request['name']?? $drug->name,
-                'description' => $request['description'] ?? $drug->description,
-                'image' => $imagePath ??$drug->image,
-                'is_requires_prescription' => $request['is_requires_prescription'] ?? $drug->is_requires_prescription,
-                'admin_notes' => $request['admin_notes'] ?? $drug->admin_notes,
-                'form_id' => $request['form_id'] ?? $drug->form_id,
-                'manufacturer_id' => $request['manufacturer_id'] ?? $drug->manufacturer_id,
-                'recommended_dosage_id' => $request['recommended_dosage_id'] ?? $drug->recommended_dosage_id,
-            ]);
+            $drug->update($request->except('active_ingredients', 'translations'));
 
             if (isset($request['active_ingredients'])) {
                 $ingredientsData = [];
@@ -244,16 +233,25 @@ class DrugController extends Controller
                     }
                 }
             }
-
-            return $drug;
         });
 
-        return $this->success(new DrugResource($drug));
+        $drug->update($request->validated());
+        if($imagePath) {
+            $drug->image = $imagePath;
+            $drug->save();
+        }
+
+
+        return $this->success(new DrugResource($drug->fresh()));
     }
 
     public function destroy($id)
     {
         $drug = Drug::findOrFail($id);
+
+        if ($drug->image) {
+            Storage::disk('public')->delete($drug->image);
+        }
 
         DB::transaction(function () use ($drug) {
             $drug->translations()->delete();
@@ -266,7 +264,7 @@ class DrugController extends Controller
 
     public function getAlternativeDrugById($id)
     {
-        $drug = Drug::select('id', 'name', 'image','description','is_requires_prescription')
+        $drug = Drug::select('id', 'name', 'image','description','is_requires_prescription', 'barcode')
             ->with(['activeIngredients' => function($query) {
                 $query->select(
                     'active_ingredients.id',
@@ -279,6 +277,7 @@ class DrugController extends Controller
 
         $activeIngredientIds = $drug->activeIngredients->pluck('id');
 
+        // تمت إضافة 'barcode' إلى جملة select
         $alternativeDrugs = Drug::where('id', '!=', $id)
             ->whereHas('activeIngredients', function($query) use ($activeIngredientIds) {
                 $query->whereIn('active_ingredients.id', $activeIngredientIds);
@@ -287,7 +286,7 @@ class DrugController extends Controller
                 $query->whereNotIn('active_ingredients.id', $activeIngredientIds);
             })
             ->with('validBatches')
-            ->select('id', 'name', 'image','description','is_requires_prescription')
+            ->select('id', 'name', 'image','description','is_requires_prescription', 'barcode')
             ->with(['activeIngredients' => function($query) {
                 $query->select(
                     'active_ingredients.id',
@@ -298,13 +297,7 @@ class DrugController extends Controller
             }])
             ->paginate(10);
 
-
-        /*return $this->success(['original_drug' => new DrugResource($drug),
-             'alternative_drugs_count' => $alternativeDrugs->count(),
-             'alternative_drugs' => new DrugCollection($alternativeDrugs)]
-         );*/
         return $this->success(new DrugCollection($alternativeDrugs));
-
     }
 
 
@@ -318,7 +311,7 @@ class DrugController extends Controller
         $ingredientIds = $validated['active_ingredients'];
         $count = count($ingredientIds);
 
-        $alternativeDrugs = Drug::select('id', 'name', 'image','description','is_requires_prescription')
+        $alternativeDrugs = Drug::select('id', 'name', 'image','description','is_requires_prescription', 'barcode')
             ->with(['activeIngredients' => function($query) {
                 $query->select(
                     'active_ingredients.id',
@@ -337,7 +330,5 @@ class DrugController extends Controller
             ->paginate(10);
 
         return $this->success(new DrugCollection($alternativeDrugs));
-
     }
-
 }

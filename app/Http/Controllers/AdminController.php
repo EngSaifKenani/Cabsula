@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage; // استيراد للتعامل مع الملفات
 use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
@@ -19,11 +20,15 @@ class AdminController extends Controller
     {
         $pharmacist = User::where('id', $id)
             ->where('role', 'pharmacist')
-            ->select(['id', 'name', 'email', 'phone_number', 'address', 'created_at','image'])
+            ->select(['id', 'name', 'email', 'phone_number', 'address', 'created_at', 'image'])
             ->first();
 
         if (!$pharmacist) {
             return $this->error('The specified user is not a pharmacist', 400);
+        }
+
+        if ($pharmacist->image) {
+            $pharmacist->image = asset('storage/' . $pharmacist->image);
         }
 
         return $this->success($pharmacist);
@@ -31,24 +36,24 @@ class AdminController extends Controller
 
     public function createPharmacist(Request $request)
     {
-        $request->validate([
+        $validatedData = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
-            'password' => 'required|string|min:3|',//confirmed',
-             'phone_number' => 'nullable|string|max:20',
+            'password' => 'required|string|min:3',
+            'phone_number' => 'nullable|string|max:20',
             'address' => 'nullable|string|max:500',
             'image' => 'required|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
         ]);
 
-        $user = User::create([
-            'name' => $request->input('name'),
-            'email' => $request->input('email'),
-            'password' => Hash::make($request->input('password')),
-            'role' => 'pharmacist',
-            'phone_number' => $request->input('phone_number'),
-            'address' => $request->input('address'),
-            'image' => $request->input('image'),
-        ]);
+        if ($request->hasFile('image')) {
+            $imagePath = $request->file('image')->store('pharmacist_images', 'public');
+            $validatedData['image'] = $imagePath;
+        }
+
+        $validatedData['password'] = Hash::make($request->input('password'));
+        $validatedData['role'] = 'pharmacist';
+
+        $user = User::create($validatedData);
 
         return $this->success([
             'user' => $user,
@@ -58,13 +63,13 @@ class AdminController extends Controller
 
     public function updatePharmacist(Request $request, $id)
     {
-        $pharmacist=User::findOrFail($id);
+        $pharmacist = User::findOrFail($id);
 
         if ($pharmacist->role !== 'pharmacist') {
             return $this->error('The specified user is not a pharmacist', 400);
         }
 
-        $request->validate([
+        $validatedData = $request->validate([
             'name' => 'sometimes|string|max:255',
             'email' => [
                 'sometimes',
@@ -74,21 +79,36 @@ class AdminController extends Controller
             'phone_number' => 'sometimes|string|max:20',
             'address' => 'sometimes|string|max:500',
             'password' => 'sometimes|string|min:3',
-            'image'=>'sometimes|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+            'image' => 'sometimes|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
         ]);
 
-        $pharmacist->update([$request]);
+        if ($request->hasFile('image')) {
+            if ($pharmacist->image) {
+                Storage::disk('public')->delete($pharmacist->image);
+            }
+            $imagePath = $request->file('image')->store('pharmacist_images', 'public');
+            $validatedData['image'] = $imagePath;
+        }
+
+
+        if ($request->filled('password')) {
+            $validatedData['password'] = Hash::make($request->input('password'));
+        }
+
+        $pharmacist->update($validatedData);
 
         return $this->success($pharmacist);
     }
 
-
-
     public function deletePharmacist($id)
     {
-        $pharmacist=User::findOrFail($id);
+        $pharmacist = User::findOrFail($id);
         if ($pharmacist->role !== 'pharmacist') {
             return $this->error('The specified user is not a pharmacist', 400);
+        }
+
+        if ($pharmacist->image) {
+            Storage::disk('public')->delete($pharmacist->image);
         }
 
         $pharmacist->delete();

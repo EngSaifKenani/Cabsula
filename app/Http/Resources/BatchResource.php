@@ -17,16 +17,25 @@ class BatchResource extends JsonResource
         return [
             'id' => $this->id,
             'batch_number'=>$this->batch_number,
-            //  'drug_id' => $this->drug_id,
-            'drug_name' => $this->whenLoaded('drug')->name ?? null,
             'status' => $this->when(auth()->user()->isAdmin()||auth()->user()->isPharmacist(), $this->status),
-            'sold' => $this->when(auth()->user()->isAdmin(), $this->sold),
-            'price' => $this->price,
-            'cost' => $this->when(auth()->user()->isAdmin(), $this->cost),
+            'sold' => $this->stock-$this->quantity,
             'stock' => $this->stock,
             'quantity' => $this->when(auth()->user()->isAdmin(), $this->quantity),
             'production_date' => $this->production_date?->toDateString(),
             'expiry_date' => $this->expiry_date?->toDateString(),
             'created_at' => $this->created_at?->toDateTimeString(),
+
+            'purchase_details' => $this->whenLoaded('purchaseItem', function () {
+                return [
+                    'cost_price' => $this->purchaseItem->cost_price,
+                    'quantity_purchased' => $this->purchaseItem->quantity,
+                    'invoice' => $this->purchaseItem->purchaseInvoice ? [
+                        'invoice_number' => $this->purchaseItem->purchaseInvoice->invoice_number,
+                        'supplier' => $this->purchaseItem->purchaseInvoice->supplier,
+                        'purchase_date' => $this->purchaseItem->purchaseInvoice->purchase_date?->toDateString(),
+                    ] : null,
+                ];
+            }),
+
         ];    }
 }

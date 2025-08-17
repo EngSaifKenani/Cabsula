@@ -156,11 +156,11 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::prefix('batches')->group(function () {
-        Route::get('/get-all', [BatchController::class, 'index']);
-        Route::get('/get-one/{id}', [BatchController::class, 'show']);
+        Route::get('/get-all/{drug}', [BatchController::class, 'index']);
+        Route::get('/get-one/{drug}', [BatchController::class, 'show']);
         Route::post('create', [BatchController::class, 'store']);
-        Route::post ('/update/{id}', [BatchController::class, 'update']);
-        Route::delete('delete/{id}', [BatchController::class, 'destroy']);
+        Route::post ('/update/{drug}', [BatchController::class, 'update']);
+        Route::delete('delete/{drug}', [BatchController::class, 'destroy']);
     });
 
 

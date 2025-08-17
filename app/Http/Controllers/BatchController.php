@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\BatchResource;
 use App\Models\Batch;
+use App\Models\Drug;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 
@@ -13,46 +15,28 @@ class BatchController extends Controller
     /**
      * Display a listing of the resource with filtering.
      */
-    public function index(Request $request)
+
+    public function index(Request $request, Drug $drug)
     {
-        $query = Batch::with('drug', 'purchaseItem.purchaseInvoice');
+        $batches = $drug->batches()->with(['purchaseItem.purchaseInvoice'])->get();
 
-        // Filter by drug ID
-        if ($request->filled('drug_id')) {
-            $query->where('drug_id', $request->drug_id);
-        }
-
-        // Filter by status (active, expired, pending, etc.)
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        // Find batches expiring before a certain date
-        if ($request->filled('expiry_before')) {
-            $query->whereDate('expiry_date', '<=', $request->expiry_before);
-        }
-
-        // Find batches expiring after a certain date
-        if ($request->filled('expiry_after')) {
-            $query->whereDate('expiry_date', '>=', $request->expiry_after);
-        }
-
-        // Search by drug name
-        if ($request->filled('search')) {
-            $query->whereHas('drug', function ($q) use ($request) {
-                $q->where('name', 'like', '%' . $request->search . '%');
-            });
-        }
-
-        $batches = $query->latest()->paginate(20);
+        $groupedBatches = $batches->groupBy('status');
+        $drug['unit_price']=$batches[0]->unit_price;
+        $response = [
+            'drug'=>$drug,
+            'active' => BatchResource::collection($groupedBatches->get('active', collect())),
+            'expired' => BatchResource::collection($groupedBatches->get('expired', collect())),
+            'sold_out' => BatchResource::collection($groupedBatches->get('sold_out', collect())),
+        ];
 
         return $this->success(
-            $batches,
-            'تم جلب الدفعات بنجاح'
+            $response,
+            'تم جلب دفعات الدواء وتصنيفها بنجاح'
         );
     }
 
-    /**
+
+/**
      * Display the specified resource.
      */
     public function show($id)
