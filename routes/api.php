@@ -169,6 +169,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/invoices', [InvoiceController::class, 'store']);
     Route::delete('/invoices/{id}', [InvoiceController::class, 'destroy']);
     Route::delete('/invoices', [InvoiceController::class, 'destroy']);
+    Route::put('/invoices/{id}', [InvoiceController::class, 'update']);
     Route::get('/dashboard/statistics', [\App\Http\Controllers\DashboardController::class, 'index']);
 
 

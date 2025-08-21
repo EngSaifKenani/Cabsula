@@ -275,6 +275,120 @@ class InvoiceController extends Controller
             return response()->json($invoice);
         }
 
+    public function update(Request $request, $id)
+    {
+        $request->validate([
+            'items' => 'required|array',
+            'items.*.drug_id' => 'required|exists:drugs,id',
+            'items.*.quantity' => 'required|integer|min:1',
+        ]);
+
+        $user = auth()->user();
+        $invoice = Invoice::with('items.batch')->findOrFail($id);
+
+        // السماح فقط للأدمن أو صاحب الفاتورة
+        if ($user->role !== 'admin' && $invoice->user_id !== $user->id) {
+            return response()->json(['error' => 'غير مصرح لك بتعديل هذه الفاتورة'], 403);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // 1. إعادة الكميات القديمة للمخزون
+            foreach ($invoice->items as $item) {
+                if ($item->batch) {
+                    $item->batch->increment('stock', $item->quantity);
+                }
+            }
+
+            // 2. حذف العناصر القديمة
+            $invoice->items()->delete();
+
+            $items = $request->items;
+            $totalCost = $totalPrice = $totalProfit = 0;
+
+            // 3. إضافة العناصر الجديدة بنفس منطق store()
+            foreach ($items as $item) {
+                $drug = Drug::findOrFail($item['drug_id']);
+                $quantityNeeded = $item['quantity'];
+
+                $batches = Batch::where('drug_id', $drug->id)
+                    ->where('stock', '>', 0)
+                    ->orderBy('created_at', 'asc')
+                    ->get();
+
+                if ($batches->isEmpty()) {
+                    DB::rollBack();
+                    return response()->json([
+                        'error' => "لا يوجد أي دفعات متاحة لهذا الدواء: {$drug->name}"
+                    ], 400);
+                }
+
+                foreach ($batches as $batch) {
+                    if ($quantityNeeded <= 0) break;
+
+                    $deductQuantity = min($batch->stock, $quantityNeeded);
+
+                    $cost = $batch->unit_cost * $deductQuantity;
+                    $price = $batch->unit_price * $deductQuantity;
+                    $profit = ($batch->unit_price - $batch->unit_cost) * $deductQuantity;
+
+                    $invoice->items()->create([
+                        'drug_id' => $drug->id,
+                        'batch_id' => $batch->id,
+                        'quantity' => $deductQuantity,
+                        'cost' => $cost,
+                        'price' => $price,
+                        'profit_amount' => $profit,
+                    ]);
+
+                    $batch->decrement('stock', $deductQuantity);
+
+                    $totalCost += $cost;
+                    $totalPrice += $price;
+                    $totalProfit += $profit;
+
+                    $quantityNeeded -= $deductQuantity;
+                }
+
+                if ($quantityNeeded > 0) {
+                    DB::rollBack();
+                    return response()->json([
+                        'error' => "الكمية المطلوبة أكبر من المخزون المتاح للدواء: {$drug->name}"
+                    ], 400);
+                }
+            }
+
+            // 4. تحديث الإجماليات
+            $invoice->update([
+                'total_cost' => $totalCost,
+                'total_price' => $totalPrice,
+                'total_profit' => $totalProfit,
+            ]);
+
+            DB::commit();
+
+            $invoice->load('items.drug', 'items.batch');
+
+            if ($user->role !== 'admin') {
+                unset($invoice->total_cost, $invoice->total_profit);
+                foreach ($invoice->items as $item) {
+                    unset($item->cost, $item->profit_amount);
+                    if ($item->relationLoaded('batch')) {
+                        unset($item->batch->unit_cost);
+                    }
+                }
+            }
+
+            return response()->json([
+                'message' => 'تم تعديل الفاتورة بنجاح',
+                'invoice' => $invoice
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['error' => 'حدث خطأ أثناء تعديل الفاتورة', 'details' => $e->getMessage()], 500);
+        }
+    }
 
     public function destroy(Request $request, $id = null)
     {
