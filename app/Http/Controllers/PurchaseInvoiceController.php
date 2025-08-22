@@ -137,7 +137,9 @@ class PurchaseInvoiceController extends Controller
 
                 foreach ($itemData['batches'] as $batchData) {
                     $batchNumber = $batchData['batch_number'] ?? 'BCH-' . now()->format('ymd') . '-' . strtoupper(Str::random(4));
-                    $purchaseItem->batches()->create([
+
+                    // إنشاء الدفعة الجديدة
+                    $newBatch = $purchaseItem->batches()->create([
                         'drug_id' => $purchaseItem->drug_id,
                         'batch_number' => $batchNumber,
                         'quantity' => $batchData['quantity'],
@@ -145,9 +147,14 @@ class PurchaseInvoiceController extends Controller
                         'expiry_date' => $batchData['expiry_date'],
                         'unit_cost' => $purchaseItem->unit_cost, // <-- Copy cost from parent item
                         'unit_price' => $batchData['unit_price'], // Use price from the batch data
-                       'total'=> $purchaseItem['unit_cost'] * $batchData['quantity'],
+                        'total'=> $purchaseItem['unit_cost'] * $batchData['quantity'],
                         'status' => 'active',
                     ]);
+
+                    // ✅ تحديث سعر جميع الدفعات السابقة لنفس الدواء
+                    \App\Models\Batch::where('drug_id', $purchaseItem->drug_id)
+                        ->where('id', '!=', $newBatch->id) // استثناء الدفعة الجديدة
+                        ->update(['unit_price' => $batchData['unit_price']]);
                 }
             }
 
