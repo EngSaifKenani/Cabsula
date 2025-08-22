@@ -456,5 +456,58 @@ class InvoiceController extends Controller
             return response()->json(['error' => 'حدث خطأ أثناء إلغاء الفواتير.'], 500);
         }
     }
+    public function statistics(Request $request)
+    {
+        $request->validate([
+            'from_date' => 'nullable|date_format:Y-m-d',
+            'to_date'   => 'nullable|date_format:Y-m-d|after_or_equal:from_date',
+            'on_date'   => 'nullable|date_format:Y-m-d',
+        ]);
+
+        $user = auth()->user();
+
+        // السماح فقط للأدمن
+        if ($user->role !== 'admin') {
+            return response()->json([
+                'message' => 'غير مصرح لك بعرض الإحصائيات.'
+            ], 403);
+        }
+
+        // 1️⃣ حساب الربح من الفواتير
+        $invoiceQuery = Invoice::query()->where('status', 'active');
+
+        if ($request->filled('on_date')) {
+            $invoiceQuery->whereDate('created_at', $request->on_date);
+        } elseif ($request->filled('from_date') && $request->filled('to_date')) {
+            $invoiceQuery->whereBetween('created_at', [
+                $request->from_date,
+                Carbon::parse($request->to_date)->endOfDay()
+            ]);
+        } elseif ($request->filled('from_date')) {
+            $invoiceQuery->whereDate('created_at', '>=', $request->from_date);
+        } elseif ($request->filled('to_date')) {
+            $invoiceQuery->whereDate('created_at', '<=', Carbon::parse($request->to_date)->endOfDay());
+        }
+
+        $totalProfit = $invoiceQuery->sum('total_profit');
+        $totalSales  = $invoiceQuery->sum('total_price');
+        $totalCost   = $invoiceQuery->sum('total_cost');
+
+        // 2️⃣ حساب رأس المال
+        $capital = \App\Models\Batch::where('status', 'active')
+            ->sum(DB::raw('stock * unit_cost'));
+
+        return response()->json([
+            'statistics' => [
+                'total_sales'  => $totalSales,
+                'total_cost'   => $totalCost,
+                'total_profit' => $totalProfit,
+                'capital'      => $capital,
+            ],
+            'message' => 'تم جلب الإحصائيات بنجاح.',
+        ]);
+    }
+
+
 
 }
