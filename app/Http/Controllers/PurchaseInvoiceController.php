@@ -108,28 +108,29 @@ class PurchaseInvoiceController extends Controller
 
         DB::beginTransaction();
         try {
-            // ✅ توليد رقم فاتورة فريد تلقائي إذا لم يرسل المستخدم رقم
+            // 2️⃣ توليد رقم فاتورة فريد
             if (!empty($validatedData['invoice_number'])) {
                 $invoiceNumber = $validatedData['invoice_number'];
-                // تحقق من وجود الرقم مسبقًا لتجنب الخطأ
                 if (PurchaseInvoice::where('invoice_number', $invoiceNumber)->exists()) {
                     return $this->error('رقم الفاتورة موجود مسبقًا، يرجى اختيار رقم آخر.', 422);
                 }
             } else {
+                // توليد رقم فريد يعتمد على التاريخ وRandom
                 do {
-                    $invoiceNumber = 'INV-' . str_pad(PurchaseInvoice::max('id') + 1, 6, '0', STR_PAD_LEFT);
+                    $invoiceNumber = 'INV-' . now()->format('Ymd') . '-' . strtoupper(Str::random(6));
                 } while (PurchaseInvoice::where('invoice_number', $invoiceNumber)->exists());
             }
 
+            // 3️⃣ إنشاء الفاتورة
             $invoice = PurchaseInvoice::create([
                 'invoice_number' => $invoiceNumber,
-                'invoice_date' => $validatedData['invoice_date'] ?? now(),
-                'supplier_id' => $validatedData['supplier_id'],
-                'subtotal' => $validatedData['subtotal'] ?? $validatedData['total'],
-                'total' => $validatedData['total'],
-                'status' => 'paid',
-                'notes' => $validatedData['notes'],
-                'user_id' => Auth::id(),
+                'invoice_date'   => $validatedData['invoice_date'] ?? now(),
+                'supplier_id'    => $validatedData['supplier_id'],
+                'subtotal'       => $validatedData['subtotal'] ?? $validatedData['total'],
+                'total'          => $validatedData['total'],
+                'status'         => 'paid',
+                'notes'          => $validatedData['notes'],
+                'user_id'        => Auth::id(),
             ]);
 
             foreach ($validatedData['items'] as $itemData) {
