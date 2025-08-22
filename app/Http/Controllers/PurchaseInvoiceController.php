@@ -108,29 +108,17 @@ class PurchaseInvoiceController extends Controller
 
         DB::beginTransaction();
         try {
-            // 2️⃣ توليد رقم فاتورة فريد
-            if (!empty($validatedData['invoice_number'])) {
-                $invoiceNumber = $validatedData['invoice_number'];
-                if (PurchaseInvoice::where('invoice_number', $invoiceNumber)->exists()) {
-                    return $this->error('رقم الفاتورة موجود مسبقًا، يرجى اختيار رقم آخر.', 422);
-                }
-            } else {
-                // توليد رقم فريد يعتمد على التاريخ وRandom
-                do {
-                    $invoiceNumber = 'INV-' . now()->format('Ymd') . '-' . strtoupper(Str::random(6));
-                } while (PurchaseInvoice::where('invoice_number', $invoiceNumber)->exists());
-            }
+            $invoiceNumber = $validatedData['invoice_number']  ?? 'INV-' . now()->format('Ymd') . '-' . strtoupper(Str::random(6));
 
-            // 3️⃣ إنشاء الفاتورة
             $invoice = PurchaseInvoice::create([
                 'invoice_number' => $invoiceNumber,
-                'invoice_date'   => $validatedData['invoice_date'] ?? now(),
-                'supplier_id'    => $validatedData['supplier_id'],
-                'subtotal'       => $validatedData['subtotal'] ?? $validatedData['total'],
-                'total'          => $validatedData['total'],
-                'status'         => 'paid',
-                'notes'          => $validatedData['notes'],
-                'user_id'        => Auth::id(),
+                'invoice_date' => $validatedData['invoice_date'] ?? now(), // Apply default date logic
+                'supplier_id' => $validatedData['supplier_id'],
+                'subtotal' =>$validatedData['subtotal']?? $validatedData['total'],
+                'total' => $validatedData['total'],
+                'status' => 'paid',
+                'notes' => $validatedData['notes'],
+                'user_id' => Auth::id(),
             ]);
 
             foreach ($validatedData['items'] as $itemData) {
@@ -149,24 +137,27 @@ class PurchaseInvoiceController extends Controller
 
                 foreach ($itemData['batches'] as $batchData) {
                     $batchNumber = $batchData['batch_number'] ?? 'BCH-' . now()->format('ymd') . '-' . strtoupper(Str::random(4));
-
-                    // إنشاء الدفعة الجديدة
                     $newBatch = $purchaseItem->batches()->create([
                         'drug_id' => $purchaseItem->drug_id,
                         'batch_number' => $batchNumber,
                         'quantity' => $batchData['quantity'],
                         'stock' => $batchData['quantity'],
                         'expiry_date' => $batchData['expiry_date'],
-                        'unit_cost' => $purchaseItem->unit_cost, // <-- Copy cost from parent item
-                        'unit_price' => $batchData['unit_price'], // Use price from the batch data
+                        'unit_cost' => $purchaseItem->unit_cost,
+                        'unit_price' => $batchData['unit_price'],
                         'total'=> $purchaseItem['unit_cost'] * $batchData['quantity'],
                         'status' => 'active',
                     ]);
+                    $previousBatches = \App\Models\Batch::where('drug_id', $purchaseItem->drug_id)
+                        ->where('id', '!=', $newBatch->id)
+                        ->get();
 
-                    // ✅ تحديث سعر جميع الدفعات السابقة لنفس الدواء
-                    \App\Models\Batch::where('drug_id', $purchaseItem->drug_id)
-                        ->where('id', '!=', $newBatch->id) // استثناء الدفعة الجديدة
-                        ->update(['unit_price' => $batchData['unit_price']]);
+                    foreach ($previousBatches as $batch) {
+                        $batch->update([
+                            'unit_price' => $batchData['unit_price'],
+                        ]);
+                    }
+
                 }
             }
 
