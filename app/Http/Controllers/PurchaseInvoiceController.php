@@ -84,6 +84,8 @@ class PurchaseInvoiceController extends Controller
     /**
      * Store a newly created resource in storage.
      */
+
+
     public function store(Request $request)
     {
         // 1. Validation Rules (Revised)
@@ -137,27 +139,17 @@ class PurchaseInvoiceController extends Controller
 
                 foreach ($itemData['batches'] as $batchData) {
                     $batchNumber = $batchData['batch_number'] ?? 'BCH-' . now()->format('ymd') . '-' . strtoupper(Str::random(4));
-                    $newBatch = $purchaseItem->batches()->create([
+                    $purchaseItem->batches()->create([
                         'drug_id' => $purchaseItem->drug_id,
                         'batch_number' => $batchNumber,
                         'quantity' => $batchData['quantity'],
                         'stock' => $batchData['quantity'],
                         'expiry_date' => $batchData['expiry_date'],
-                        'unit_cost' => $purchaseItem->unit_cost,
-                        'unit_price' => $batchData['unit_price'],
+                        'unit_cost' => $purchaseItem->unit_cost, // <-- Copy cost from parent item
+                        'unit_price' => $batchData['unit_price'], // Use price from the batch data
                         'total'=> $purchaseItem['unit_cost'] * $batchData['quantity'],
                         'status' => 'active',
                     ]);
-                    $previousBatches = \App\Models\Batch::where('drug_id', $purchaseItem->drug_id)
-                        ->where('id', '!=', $newBatch->id)
-                        ->get();
-
-                    foreach ($previousBatches as $batch) {
-                        $batch->update([
-                            'unit_price' => $batchData['unit_price'],
-                        ]);
-                    }
-
                 }
             }
 
@@ -170,6 +162,10 @@ class PurchaseInvoiceController extends Controller
             return $this->error('فشل في إنشاء الفاتورة: ' . $e->getMessage(), 500);
         }
     }
+
+
+
+
     /**
      * Display the specified resource.
      */
