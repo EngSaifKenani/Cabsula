@@ -24,6 +24,7 @@ return new class extends Migration
             $table->decimal('discount', 12, 2)->default(0);
             // المبلغ الإجمالي النهائي بعد الخصم
             $table->decimal('total', 12, 2);
+            $table->decimal('paid_amount', 12, 2)->default(0);
             // حالة الفاتورة (مسودة، مكتملة، ملغاة)
             $table->enum('status', ['unpaid', 'partially paid', 'paid'])->default('Paid');
             $table->text('notes')->nullable();

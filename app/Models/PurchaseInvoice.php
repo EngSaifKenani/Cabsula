@@ -28,6 +28,10 @@ class PurchaseInvoice extends Model
         'user_id',
     ];
 
+    protected $casts=[
+        'invoice_date'=>'date',
+    ];
+
     /**
      * Get the supplier that owns the invoice.
      */

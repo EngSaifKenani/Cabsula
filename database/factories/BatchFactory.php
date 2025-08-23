@@ -25,7 +25,7 @@ class BatchFactory extends Factory
             // --- Basic Batch Information ---
             'batch_number' => strtoupper(Str::random(3)) . '-' . fake()->numerify('#####'),
             'expiry_date' => fake()->dateTimeBetween('+6 months', '+3 years'),
-            'status' => 'active',
+            'status' => 'available',
 
             // --- Quantity and Stock ---
             'quantity' => $quantity,

@@ -159,7 +159,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/get-all/{drug}', [BatchController::class, 'index']);
         Route::get('/get-one/{drug}', [BatchController::class, 'show']);
         Route::post('create', [BatchController::class, 'store']);
-        Route::post ('/update/{drug}', [BatchController::class, 'update']);
+        Route::post ('/update-status/{id}', [BatchController::class, 'updateStatus']);
         Route::delete('delete/{drug}', [BatchController::class, 'destroy']);
     });
 

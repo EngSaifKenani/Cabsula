@@ -14,6 +14,14 @@ return new class extends Migration
         Schema::create('notifications', function (Blueprint $table) {
             $table->id();
             $table->text('message');
+            $table->enum('type', [
+                    'approaching_expiry',
+                    'expired',
+                    'low_stock',
+                    'out_of_stock',
+                    'general'
+                ]
+            )->nullable();
             $table->timestamps();
         });
     }

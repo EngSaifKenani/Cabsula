@@ -142,12 +142,12 @@ class DrugController extends Controller
 
         return $this->success(new DrugResource($drug));
     }
-
     public function update(Request $request, $id, TranslationService $translationService)
     {
         $drug = Drug::findOrFail($id);
 
-        $request->validate([
+
+        $validatedData = $request->validate([
             'name' => [
                 'sometimes',
                 'string',
@@ -155,27 +155,27 @@ class DrugController extends Controller
                 Rule::unique('drugs')->ignore($drug->id)
             ],
             'description' => 'nullable|string',
-            'barcode' => [ // <<-- تعديل هنا
+            'barcode' => [
                 'sometimes',
                 'string',
                 Rule::unique('drugs')->ignore($drug->id)
             ],
             'image' => 'sometimes|image|mimes:jpeg,png,jpg|max:2048',
-            'is_requires_prescription' => 'boolean',
+            'is_requires_prescription' => 'sometimes|boolean',
             'admin_notes' => 'sometimes|string',
             'form_id' => 'sometimes|exists:forms,id',
             'manufacturer_id' => 'sometimes|exists:manufacturers,id',
             'recommended_dosage_id' => 'sometimes|exists:recommended_dosages,id',
             'active_ingredients' => 'sometimes|array',
-            'active_ingredients.*.id' => 'required|exists:active_ingredients,id',
-            'active_ingredients.*.concentration' => 'required|numeric|min:0',
-            'active_ingredients.*.unit' => 'required|in:mg,g,ml,mcg,IU',
+            'active_ingredients.*.id' => 'required_with:active_ingredients|exists:active_ingredients,id',
+            'active_ingredients.*.concentration' => 'required_with:active_ingredients|numeric|min:0',
+            'active_ingredients.*.unit' => 'required_with:active_ingredients|in:mg,g,ml,mcg,IU',
             'translations' => 'sometimes|array',
-            'translations.*.locale' => 'required|string|in:en,ar,fr',
-            'translations.*.name' => 'required|string|max:255',
+            'translations.*.locale' => 'required_with:translations|string|in:en,ar,fr',
+            'translations.*.name' => 'required_with:translations|string|max:255',
         ]);
 
-        $imagePath=null;
+        $imagePath = null;
         if ($request->hasFile('image')) {
             if ($drug->image) {
                 Storage::disk('public')->delete($drug->image);
@@ -183,14 +183,20 @@ class DrugController extends Controller
             $imagePath = $request->file('image')->store('drugs', 'public');
         }
 
-        $sourceLocale = 'en';
-        DB::transaction(function () use ( $imagePath,$sourceLocale, $drug, $request, $translationService) {
+        DB::transaction(function () use ($drug, $validatedData, $translationService, $imagePath) {
 
-            $drug->update($request->except('active_ingredients', 'translations'));
+            // 2. تجهيز بيانات الدواء الأساسية للتحديث
+            $drugData = collect($validatedData)->except(['active_ingredients', 'translations'])->all();
 
-            if (isset($request['active_ingredients'])) {
+            if ($imagePath) {
+                $drugData['image'] = $imagePath;
+            }
+
+            $drug->update($drugData);
+
+            if (isset($validatedData['active_ingredients'])) {
                 $ingredientsData = [];
-                foreach ($request['active_ingredients'] as $ingredient) {
+                foreach ($validatedData['active_ingredients'] as $ingredient) {
                     $ingredientsData[$ingredient['id']] = [
                         'concentration' => $ingredient['concentration'],
                         'unit' => $ingredient['unit']
@@ -199,35 +205,33 @@ class DrugController extends Controller
                 $drug->activeIngredients()->sync($ingredientsData);
             }
 
-            if (isset($request['translations'])) {
-
-                foreach ($request['translations'] as $translation) {
+            if (isset($validatedData['translations'])) {
+                $sourceLocale = 'en';
+                foreach ($validatedData['translations'] as $translation) {
                     $locale = $translation['locale'];
                     $drug->translations()->updateOrCreate(
-                        ['locale' => $translation['locale'], 'field' => 'name'],
+                        ['locale' => $locale, 'field' => 'name'],
                         ['value' => $translation['name']]
                     );
 
-                    if (isset($request['description'])) {
-                        $translatedValue = $locale === $sourceLocale
-                            ? $request['description']
-                            : $translationService->translate($request['description'], $sourceLocale, $locale);
-
+                    if (isset($validatedData['description'])) {
+                        $translatedValue = ($locale === $sourceLocale)
+                            ? $validatedData['description']
+                            : $translationService->translate($validatedData['description'], $sourceLocale, $locale);
 
                         $drug->translations()->updateOrCreate(
-                            ['locale' => $translation['locale'], 'field' => 'description'],
+                            ['locale' => $locale, 'field' => 'description'],
                             ['value' => $translatedValue]
                         );
                     }
 
-                    if (isset($request['admin_notes'])) {
-                        $translatedValue = $locale === $sourceLocale
-                            ? $request['admin_notes']
-                            : $translationService->translate($request['admin_notes'], $sourceLocale, $locale);
-
+                    if (isset($validatedData['admin_notes'])) {
+                        $translatedValue = ($locale === $sourceLocale)
+                            ? $validatedData['admin_notes']
+                            : $translationService->translate($validatedData['admin_notes'], $sourceLocale, $locale);
 
                         $drug->translations()->updateOrCreate(
-                            ['locale' => $translation['locale'], 'field' => 'admin_notes'],
+                            ['locale' => $locale, 'field' => 'admin_notes'],
                             ['value' => $translatedValue]
                         );
                     }
@@ -235,15 +239,9 @@ class DrugController extends Controller
             }
         });
 
-        $drug->update($request->validated());
-        if($imagePath) {
-            $drug->image = $imagePath;
-            $drug->save();
-        }
-
-
         return $this->success(new DrugResource($drug->fresh()));
     }
+
 
     public function destroy($id)
     {

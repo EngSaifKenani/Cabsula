@@ -18,6 +18,7 @@ class   Drug extends Model
         'total_sold',
         'description',
         'status',
+        'barcode',
         'admin_notes',
         'image',
         'form_id',

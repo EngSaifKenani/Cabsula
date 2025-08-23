@@ -7,74 +7,136 @@ use App\Models\Batch;
 use App\Models\Drug;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
+use Illuminate\Validation\Rule;
 
 class BatchController extends Controller
 {
     use ApiResponse;
 
     /**
-     * Display a listing of the resource with filtering.
+     * Display a listing of the resource with advanced filtering.
      */
-
     public function index(Request $request, Drug $drug)
     {
-        $batches = $drug->batches()->with(['purchaseItem.purchaseInvoice'])->get();
+        $query = $drug->batches()->with(['purchaseItem.purchaseInvoice']);
+
+        if ($request->filled('expiry_start_date') && $request->filled('expiry_end_date')) {
+            $startDate = Carbon::parse($request->input('expiry_start_date'))->startOfDay();
+            $endDate = Carbon::parse($request->input('expiry_end_date'))->endOfDay();
+            $query->whereBetween('expiry_date', [$startDate, $endDate]);
+        }
+
+      /*  if ($request->filled('purchase_start_date') && $request->filled('purchase_end_date')) {
+            $startDate = Carbon::parse($request->input('purchase_start_date'))->startOfDay();
+            $endDate = Carbon::parse($request->input('purchase_end_date'))->endOfDay();
+            $query->whereHas('purchaseItem.purchaseInvoice', function ($q) use ($startDate, $endDate) {
+                $q->whereBetween('invoice_date', [$startDate, $endDate]);
+            });
+        }*/
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
+        $batches = $query->get();
+
+        $firstBatch = $batches->first();
+        $drug['unit_price'] = $firstBatch ? $firstBatch->unit_price : null;
 
         $groupedBatches = $batches->groupBy('status');
-        $drug['unit_price']=$batches[0]->unit_price;
+
         $response = [
-            'drug'=>$drug,
-            'active' => BatchResource::collection($groupedBatches->get('active', collect())),
+            'drug' => $drug,
+            'available' => BatchResource::collection($groupedBatches->get('available', collect())),
             'expired' => BatchResource::collection($groupedBatches->get('expired', collect())),
             'sold_out' => BatchResource::collection($groupedBatches->get('sold_out', collect())),
+            'disposed' => BatchResource::collection($groupedBatches->get('disposed', collect())),
+            'returned' => BatchResource::collection($groupedBatches->get('returned', collect())),
         ];
 
-        return $this->success(
-            $response,
-            'تم جلب دفعات الدواء وتصنيفها بنجاح'
-        );
+        return $this->success($response, 'تم جلب دفعات الدواء وتصنيفها بنجاح');
     }
 
-
-/**
-     * Display the specified resource.
+    /**
+     * Display the specified resource, including disposer and returner info.
      */
     public function show($id)
     {
-        $batch = Batch::with(['drug', 'purchaseItem.purchaseInvoice.supplier'])->find($id);
+        // Eager load the new relationships 'disposer' and 'returner'
+        $batch = Batch::with([
+            'drug',
+            'purchaseItem.purchaseInvoice.supplier',
+            'disposer',
+            'returner'
+        ])->find($id);
 
         if (!$batch) {
             return $this->error('الدفعة غير موجودة', 404);
         }
 
-        return $this->success($batch, 'تم جلب الدفعة بنجاح');
+        return $this->success(new BatchResource($batch), 'تم جلب الدفعة بنجاح');
     }
 
     /**
-     * Store a newly created resource in storage.
-     * This method is intentionally left empty because batches should only be created
-     * through the PurchaseInvoiceController to ensure data integrity.
+     * Update only the status of a specific batch and record the action.
      */
+    public function updateStatus(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'status' => [
+                'required',
+                'string',
+                Rule::in(['available', 'expired', 'sold_out', 'disposed', 'returned']),
+            ],
+        ]);
+
+        $batch = Batch::find($id);
+
+        if (!$batch) {
+            return $this->error('الدفعة غير موجودة', 404);
+        }
+
+        $batch->status = $validated['status'];
+
+        // Automatically record who performed the action and when
+        if ($validated['status'] == 'disposed') {
+            $batch->disposed_at = now();
+            $batch->disposed_by = auth()->id(); // Get the currently logged-in user's ID
+            // Clear return fields in case it was returned before
+            $batch->returned_at = null;
+            $batch->returned_by = null;
+        } elseif ($validated['status'] == 'returned') {
+            $batch->returned_at = now();
+            $batch->returned_by = auth()->id();
+            // Clear dispose fields
+            $batch->disposed_at = null;
+            $batch->disposed_by = null;
+        } else {
+            // If status is changed to something else (e.g., available), clear all action fields
+            $batch->disposed_at = null;
+            $batch->disposed_by = null;
+            $batch->returned_at = null;
+            $batch->returned_by = null;
+        }
+
+        $batch->save();
+
+        return $this->success(new BatchResource($batch->fresh(['disposer', 'returner'])), 'تم تحديث حالة الدفعة بنجاح');
+    }
+
+    // --- Methods below are intentionally blocked ---
+
     public function store(Request $request)
     {
-        return $this->error('لا يمكن إنشاء دفعة بشكل مباشر. يرجى استخدام نقطة نهاية فواتير المشتريات.', 405); // 405 Method Not Allowed
+        return $this->error('لا يمكن إنشاء دفعة بشكل مباشر. يرجى استخدام نقطة نهاية فواتير المشتريات.', 405);
     }
 
-    /**
-     * Update the specified resource in storage.
-     * This method is intentionally left empty because batches should only be updated
-     * through the PurchaseInvoiceController. A direct update might be allowed for specific fields like 'status' in the future.
-     */
     public function update(Request $request, $id)
     {
-        return $this->error('لا يمكن تعديل دفعة بشكل مباشر. يرجى استخدام نقطة نهاية فواتير المشتريات.', 405);
+        return $this->error('لا يمكن تعديل دفعة بشكل مباشر. استخدم نقطة النهاية المخصصة لتحديث الحالة.', 405);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     * This method is intentionally left empty because batches should only be deleted
-     * when their parent purchase invoice is deleted.
-     */
     public function destroy($id)
     {
         return $this->error('لا يمكن حذف دفعة بشكل مباشر.', 405);

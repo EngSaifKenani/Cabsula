@@ -26,51 +26,39 @@ class PurchaseInvoiceController extends Controller
      */
     public function index(Request $request)
     {
-        // ابدأ ببناء الاستعلام دون تنفيذه
         $query = PurchaseInvoice::query();
 
-        // قم بتضمين العلاقات لتحسين الأداء (Eager Loading)
         $query->with('supplier', 'user');
 
-        // 1. الفلترة حسب تاريخ معين (يوم واحد)
         if ($request->filled('invoice_date')) {
-            // استخدام whereDate للتعامل مع التاريخ فقط وتجاهل الوقت
             $query->whereDate('invoice_date', $request->invoice_date);
         }
 
-        // 2. الفلترة حسب نطاق تاريخ (من تاريخ ... إلى تاريخ)
         if ($request->filled('start_date') && $request->filled('end_date')) {
             $query->whereBetween('invoice_date', [$request->start_date, $request->end_date]);
         }
 
-        // 3. الفلترة حسب السعر (الإجمالي)
-        // البحث عن سعر محدد بالضبط
+
         if ($request->filled('total')) {
             $query->where('total', $request->total);
         }
 
-        // البحث عن نطاق سعر (أكبر من أو يساوي)
         if ($request->filled('min_total')) {
             $query->where('total', '>=', $request->min_total);
         }
 
-        // البحث عن نطاق سعر (أصغر من أو يساوي)
         if ($request->filled('max_total')) {
             $query->where('total', '<=', $request->max_total);
         }
 
-        // 4. فلاتر إضافية مفيدة
-        // البحث برقم الفاتورة
         if ($request->filled('invoice_number')) {
             $query->where('invoice_number', 'like', '%' . $request->invoice_number . '%');
         }
 
-        // البحث بالمورد
         if ($request->filled('supplier_id')) {
             $query->where('supplier_id', $request->supplier_id);
         }
 
-        // البحث بحالة الفاتورة (إذا كان لديك عمود status)
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
@@ -146,7 +134,6 @@ class PurchaseInvoiceController extends Controller
                         'unit_cost' => $purchaseItem->unit_cost, // <-- Copy cost from parent item
                         'unit_price' => $batchData['unit_price'], // Use price from the batch data
                        'total'=> $purchaseItem['unit_cost'] * $batchData['quantity'],
-                        'status' => 'active',
                     ]);
                 }
             }
@@ -246,7 +233,6 @@ class PurchaseInvoiceController extends Controller
                         'unit_cost' => $purchaseItem->unit_cost,
                         'unit_price' => $batchData['unit_price'],
                         'total'=> $purchaseItem['unit_cost'] * $batchData['quantity'],
-                        'status' => 'active',
                     ]);
                 }
             }

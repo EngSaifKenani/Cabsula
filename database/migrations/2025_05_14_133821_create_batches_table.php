@@ -23,7 +23,16 @@ return new class extends Migration
             $table->decimal('unit_price', 8, 2);
 
             $table->decimal('total', 8, 2);
-            $table->enum('status', ['active', 'expired', 'sold_out'])->default('active');
+            $table->enum('status', ['available', 'expired',
+                'sold_out','disposed', 'returned'
+            ])->default('available');
+
+            $table->timestamp('disposed_at')->nullable();
+            $table->foreignId('disposed_by')->nullable()->constrained('users')->onDelete('set null');
+            $table->timestamp('returned_at')->nullable();
+            $table->foreignId('returned_by')->nullable()->constrained('users')->onDelete('set null');
+
+
             $table->timestamps();
         });
     }

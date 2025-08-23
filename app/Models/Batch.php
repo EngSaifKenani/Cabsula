@@ -26,7 +26,11 @@ class Batch extends Model
         'unit_price',
         'total',
         'status',
-    ];
+        'disposer_by',
+        'disposer_at',
+        'returner_by',
+        'returner_at',
+        ];
 
     /**
      * The attributes that should be cast.
@@ -37,6 +41,10 @@ class Batch extends Model
         'expiry_date' => 'date',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'disposed_at' => 'datetime',
+        'returned_at' => 'datetime',
+        'invoice_date' => 'date',
+
     ];
 
     /**
@@ -53,5 +61,13 @@ class Batch extends Model
     public function drug(): BelongsTo
     {
         return $this->belongsTo(Drug::class);
+    }
+    public function disposer()
+    {
+        return $this->belongsTo(User::class, 'disposed_by');
+    }
+    public function returner()
+    {
+        return $this->belongsTo(User::class, 'returned_by');
     }
 }
