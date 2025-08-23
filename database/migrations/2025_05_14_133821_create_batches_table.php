@@ -21,7 +21,7 @@ return new class extends Migration
             $table->date('expiry_date');
             $table->decimal('unit_cost', 8, 2);
             $table->decimal('unit_price', 8, 2);
-
+            $table->boolean('is_expiry_notified')->default(false);
             $table->decimal('total', 8, 2);
             $table->enum('status', ['available', 'expired',
                 'sold_out','disposed', 'returned'

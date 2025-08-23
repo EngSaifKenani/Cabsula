@@ -24,6 +24,7 @@ class Batch extends Model
         'expiry_date',
         'unit_cost',
         'unit_price',
+        'is_expiry_notified',
         'total',
         'status',
         'disposer_by',

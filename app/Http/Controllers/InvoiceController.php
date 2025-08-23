@@ -2,16 +2,26 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendNotificationJob;
 use App\Models\Batch;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Drug;
+use App\Models\User;
+use App\Services\FirebaseService;
+use App\Services\NotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class InvoiceController extends Controller
 {
+
+    public function __construct(NotificationService $notificationService,FirebaseService $firebaseService)
+    {
+        $this->notificationService =$notificationService;
+$this->firebaseService = $firebaseService;    }
+
     public function index(Request $request)
     {
         // التحقق من المدخلات
@@ -205,9 +215,61 @@ class InvoiceController extends Controller
                 $totalCost += $cost;
                 $totalPrice += $price;
                 $totalProfit += $profit;
-
                 $quantityNeeded -= $deductQuantity;
             }
+             $remainingStock = Batch::where('drug_id', $drug->id)
+                ->sum('stock');
+            if ($remainingStock <= 10) {
+                $usersToNotify = User::whereIn('role', ['admin','pharmacist'])->get();
+                $deviceTokens = $usersToNotify->flatMap(function ($user) {
+                    return $user->deviceTokens->pluck('token');
+                })->toArray();  $userIds = $usersToNotify->pluck('id')->toArray();
+
+                if ($remainingStock == 0) {
+                    $message = "تم نفاد مخزون دواء {$drug->name}.";
+                    $type = 'out_of_stock';
+                    $title = 'نفاد المخزون!';
+                } else {
+                    $message = "اقترب مخزون دواء {$drug->name} من النفاد. الكمية المتبقية: {$remainingStock}";
+                    $type = 'low_stock';
+                    $title = 'تحذير مخزون منخفض!';
+                }
+
+                // إطلاق المهمة (Job) في قائمة الانتظار
+                SendNotificationJob::dispatch($message, $type, $title, $userIds, $deviceTokens);
+            }
+
+//            $remainingStock = Batch::where('drug_id', $drug->id)
+//                ->sum('stock');
+//
+//            $remainingQuantities[$drug->name] = $remainingStock;
+//
+//            // تحديد المستخدمين الذين سيتم إشعارهم
+//            $usersToNotify = User::whereIn('role', ['admin', 'pharmacist'])->get();
+//            $deviceTokens = $usersToNotify->pluck('device_token')->filter()->toArray();
+//
+//            // منطق الإشعار
+//            if ($remainingStock <= 10) {
+//                if ($remainingStock == 0) {
+//                    $message = "تم نفاد مخزون دواء {$drug->name}.";
+//                    $type = 'stock_depleted';
+//                    $title = 'نفاد المخزون!';
+//
+//                    // إرسال إشعار Firebase
+//                    $this->firebaseService->sendNotification($deviceTokens, $title, $message);
+//                } else {
+//                    $message = "اقترب مخزون دواء {$drug->name} من النفاد. الكمية المتبقية: {$remainingStock}";
+//                    $type = 'low_stock_alert';
+//                    $title = 'تحذير مخزون منخفض!';
+//
+//                    // إرسال إشعار Firebase
+//                    $this->firebaseService->sendNotification($deviceTokens, $title, $message);
+//                }
+//
+//                // إرسال الإشعار عبر الخدمة المحلية
+//                $this->notificationService->createAndSendNotification($message, $type, $usersToNotify->pluck('id')->toArray());
+//            }
+
 
             // إذا لم نتمكن من تغطية الكمية المطلوبة
             if ($quantityNeeded > 0) {
@@ -275,6 +337,120 @@ class InvoiceController extends Controller
             return response()->json($invoice);
         }
 
+    public function update(Request $request, $id)
+    {
+        $request->validate([
+            'items' => 'required|array',
+            'items.*.drug_id' => 'required|exists:drugs,id',
+            'items.*.quantity' => 'required|integer|min:1',
+        ]);
+
+        $user = auth()->user();
+        $invoice = Invoice::with('items.batch')->findOrFail($id);
+
+        // السماح فقط للأدمن أو صاحب الفاتورة
+        if ($user->role !== 'admin' && $invoice->user_id !== $user->id) {
+            return response()->json(['error' => 'غير مصرح لك بتعديل هذه الفاتورة'], 403);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // 1. إعادة الكميات القديمة للمخزون
+            foreach ($invoice->items as $item) {
+                if ($item->batch) {
+                    $item->batch->increment('stock', $item->quantity);
+                }
+            }
+
+            // 2. حذف العناصر القديمة
+            $invoice->items()->delete();
+
+            $items = $request->items;
+            $totalCost = $totalPrice = $totalProfit = 0;
+
+            // 3. إضافة العناصر الجديدة بنفس منطق store()
+            foreach ($items as $item) {
+                $drug = Drug::findOrFail($item['drug_id']);
+                $quantityNeeded = $item['quantity'];
+
+                $batches = Batch::where('drug_id', $drug->id)
+                    ->where('stock', '>', 0)
+                    ->orderBy('created_at', 'asc')
+                    ->get();
+
+                if ($batches->isEmpty()) {
+                    DB::rollBack();
+                    return response()->json([
+                        'error' => "لا يوجد أي دفعات متاحة لهذا الدواء: {$drug->name}"
+                    ], 400);
+                }
+
+                foreach ($batches as $batch) {
+                    if ($quantityNeeded <= 0) break;
+
+                    $deductQuantity = min($batch->stock, $quantityNeeded);
+
+                    $cost = $batch->unit_cost * $deductQuantity;
+                    $price = $batch->unit_price * $deductQuantity;
+                    $profit = ($batch->unit_price - $batch->unit_cost) * $deductQuantity;
+
+                    $invoice->items()->create([
+                        'drug_id' => $drug->id,
+                        'batch_id' => $batch->id,
+                        'quantity' => $deductQuantity,
+                        'cost' => $cost,
+                        'price' => $price,
+                        'profit_amount' => $profit,
+                    ]);
+
+                    $batch->decrement('stock', $deductQuantity);
+
+                    $totalCost += $cost;
+                    $totalPrice += $price;
+                    $totalProfit += $profit;
+
+                    $quantityNeeded -= $deductQuantity;
+                }
+
+                if ($quantityNeeded > 0) {
+                    DB::rollBack();
+                    return response()->json([
+                        'error' => "الكمية المطلوبة أكبر من المخزون المتاح للدواء: {$drug->name}"
+                    ], 400);
+                }
+            }
+
+            // 4. تحديث الإجماليات
+            $invoice->update([
+                'total_cost' => $totalCost,
+                'total_price' => $totalPrice,
+                'total_profit' => $totalProfit,
+            ]);
+
+            DB::commit();
+
+            $invoice->load('items.drug', 'items.batch');
+
+            if ($user->role !== 'admin') {
+                unset($invoice->total_cost, $invoice->total_profit);
+                foreach ($invoice->items as $item) {
+                    unset($item->cost, $item->profit_amount);
+                    if ($item->relationLoaded('batch')) {
+                        unset($item->batch->unit_cost);
+                    }
+                }
+            }
+
+            return response()->json([
+                'message' => 'تم تعديل الفاتورة بنجاح',
+                'invoice' => $invoice
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['error' => 'حدث خطأ أثناء تعديل الفاتورة', 'details' => $e->getMessage()], 500);
+        }
+    }
 
     public function destroy(Request $request, $id = null)
     {
@@ -342,5 +518,58 @@ class InvoiceController extends Controller
             return response()->json(['error' => 'حدث خطأ أثناء إلغاء الفواتير.'], 500);
         }
     }
+    public function statistics(Request $request)
+    {
+        $request->validate([
+            'from_date' => 'nullable|date_format:Y-m-d',
+            'to_date'   => 'nullable|date_format:Y-m-d|after_or_equal:from_date',
+            'on_date'   => 'nullable|date_format:Y-m-d',
+        ]);
+
+        $user = auth()->user();
+
+        // السماح فقط للأدمن
+        if ($user->role !== 'admin') {
+            return response()->json([
+                'message' => 'غير مصرح لك بعرض الإحصائيات.'
+            ], 403);
+        }
+
+        // 1️⃣ حساب الربح من الفواتير
+        $invoiceQuery = Invoice::query()->where('status', 'active');
+
+        if ($request->filled('on_date')) {
+            $invoiceQuery->whereDate('created_at', $request->on_date);
+        } elseif ($request->filled('from_date') && $request->filled('to_date')) {
+            $invoiceQuery->whereBetween('created_at', [
+                $request->from_date,
+                Carbon::parse($request->to_date)->endOfDay()
+            ]);
+        } elseif ($request->filled('from_date')) {
+            $invoiceQuery->whereDate('created_at', '>=', $request->from_date);
+        } elseif ($request->filled('to_date')) {
+            $invoiceQuery->whereDate('created_at', '<=', Carbon::parse($request->to_date)->endOfDay());
+        }
+
+        $totalProfit = $invoiceQuery->sum('total_profit');
+        $totalSales  = $invoiceQuery->sum('total_price');
+        $totalCost   = $invoiceQuery->sum('total_cost');
+
+        // 2️⃣ حساب رأس المال
+        $capital = \App\Models\Batch::where('status', 'active')
+            ->sum(DB::raw('stock * unit_cost'));
+
+        return response()->json([
+            'statistics' => [
+                'total_sales'  => $totalSales,
+                'total_cost'   => $totalCost,
+                'total_profit' => $totalProfit,
+                'capital'      => $capital,
+            ],
+            'message' => 'تم جلب الإحصائيات بنجاح.',
+        ]);
+    }
+
+
 
 }

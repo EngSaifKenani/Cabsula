@@ -9,12 +9,14 @@ use App\Http\Resources\FormResource;
 use App\Http\Resources\ManufacturerResource;
 use App\Http\Resources\RecommendedDosageResource;
 use App\Models\ActiveIngredient;
+use App\Models\Batch;
 use App\Models\Drug;
 use App\Models\Form;
 use App\Models\Manufacturer;
 use App\Models\RecommendedDosage;
 use App\Services\TranslationService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -33,9 +35,38 @@ class DrugController extends Controller
 
     public function index(Request $request)
     {
-        $drugs = Drug::with('validBatches')
-            ->select('id','name','description','image','is_requires_prescription', 'barcode')
-            ->paginate(10);
+        // Start with the base query and eager load relationships
+        $query = Drug::with('batches');
+        // Select the necessary fields to optimize the query
+        $query->select('id', 'name', 'description', 'image', 'is_requires_prescription', 'barcode', 'status');
+
+        // Filter by drug status (sellable or non_sellable)
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
+        // Filter by prescription requirement (true or false)
+        if ($request->filled('is_requires_prescription')) {
+            $query->where('is_requires_prescription', $request->input('is_requires_prescription'));
+        }
+
+        // Additional filter ideas:
+        // Filter by manufacturer ID
+        if ($request->filled('manufacturer_id')) {
+            $query->where('manufacturer_id', $request->input('manufacturer_id'));
+        }
+
+        // Search by drug name or barcode
+        if ($request->filled('search')) {
+            $search = '%' . $request->input('search') . '%';
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', $search)
+                    ->orWhere('barcode', 'like', $search);
+            });
+        }
+
+        // Get paginated results
+        $drugs = $query->paginate(10);
 
         return $this->success(new DrugCollection($drugs));
     }
@@ -43,10 +74,9 @@ class DrugController extends Controller
     public function show(Request $request, $identifier)
     {
         $validRelations = $this->extractValidRelations(Drug::class, $request);
-
         $drug = Drug::with(array_merge($validRelations, [
             'activeIngredients:id,scientific_name',
-            'validBatches'
+            'batches'
         ]))
             ->where(function ($query) use ($identifier) {
                 $query->where('id', $identifier)
@@ -62,7 +92,7 @@ class DrugController extends Controller
         $request->validate([
             'name' => 'required|string|max:255|unique:drugs',
             'description' => 'nullable|string',
-            'barcode' => 'required|string|unique:drugs,barcode', // <<-- تعديل هنا
+            'barcode' => 'required|string|unique:drugs,barcode',
             'image' => 'required|image|mimes:jpeg,png,jpg|max:2048',
             'is_requires_prescription' => 'boolean',
             'admin_notes' => 'nullable|string',
@@ -76,6 +106,8 @@ class DrugController extends Controller
             'translations' => 'required|array',
             'translations.*.locale' => 'required|string|in:en,ar,fr',
             'translations.*.name' => 'required|string|max:255',
+            // إضافة حقل الحالة كاختياري مع تحديد القيم الممكنة
+            'status' => 'nullable|string|in:sellable,non_sellable',
         ]);
         $imagePath=null;
         if ($request->hasFile('image')) {
@@ -88,11 +120,13 @@ class DrugController extends Controller
                 'description' => $request->description,
                 'image' => $imagePath,
                 'is_requires_prescription' => $request['is_requires_prescription'] ?? false,
-                'barcode'=>$request['barcode'],
+                'barcode' => $request['barcode'],
                 'admin_notes' => $request['admin_notes'],
                 'form_id' => $request['form_id'],
                 'manufacturer_id' => $request['manufacturer_id'],
                 'recommended_dosage_id' => $request['recommended_dosage_id'],
+                // إضافة الحالة إلى بيانات الإنشاء
+                'status' => $request['status'] ?? 'sellable',
             ]);
 
             $ingredientsData = [];
@@ -142,11 +176,10 @@ class DrugController extends Controller
 
         return $this->success(new DrugResource($drug));
     }
+
     public function update(Request $request, $id, TranslationService $translationService)
     {
         $drug = Drug::findOrFail($id);
-
-
         $validatedData = $request->validate([
             'name' => [
                 'sometimes',
@@ -173,8 +206,9 @@ class DrugController extends Controller
             'translations' => 'sometimes|array',
             'translations.*.locale' => 'required_with:translations|string|in:en,ar,fr',
             'translations.*.name' => 'required_with:translations|string|max:255',
+            // إضافة حقل الحالة كاختياري مع sometimes
+            'status' => 'sometimes|string|in:sellable,non_sellable',
         ]);
-
         $imagePath = null;
         if ($request->hasFile('image')) {
             if ($drug->image) {
@@ -182,16 +216,11 @@ class DrugController extends Controller
             }
             $imagePath = $request->file('image')->store('drugs', 'public');
         }
-
         DB::transaction(function () use ($drug, $validatedData, $translationService, $imagePath) {
-
-            // 2. تجهيز بيانات الدواء الأساسية للتحديث
             $drugData = collect($validatedData)->except(['active_ingredients', 'translations'])->all();
-
             if ($imagePath) {
                 $drugData['image'] = $imagePath;
             }
-
             $drug->update($drugData);
 
             if (isset($validatedData['active_ingredients'])) {

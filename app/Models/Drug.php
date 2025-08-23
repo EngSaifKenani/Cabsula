@@ -19,6 +19,7 @@ class   Drug extends Model
         'description',
         'status',
         'barcode',
+        'status',
         'admin_notes',
         'image',
         'form_id',

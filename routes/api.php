@@ -169,7 +169,11 @@ Route::prefix('v1')->group(function () {
     Route::post('/invoices', [InvoiceController::class, 'store']);
     Route::delete('/invoices/{id}', [InvoiceController::class, 'destroy']);
     Route::delete('/invoices', [InvoiceController::class, 'destroy']);
-    Route::get('/dashboard/statistics', [\App\Http\Controllers\DashboardController::class, 'index']);
+    Route::put('/invoices/{id}', [InvoiceController::class, 'update']);
+    Route::get('/money/statistics', [InvoiceController::class, 'statistics']);
+
+
+        Route::get('/dashboard/statistics', [\App\Http\Controllers\DashboardController::class, 'index']);
 
 
 

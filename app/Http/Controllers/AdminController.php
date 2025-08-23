@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendNotificationJob;
 use App\Models\User;
+use App\Services\FirebaseService;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage; // استيراد للتعامل مع الملفات
@@ -10,6 +13,11 @@ use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
 {
+    public function __construct(NotificationService $notificationService, FirebaseService $firebaseService)
+    {
+        $this->notificationService = $notificationService;
+        $this->firebaseService = $firebaseService;
+    }
     public function listPharmacists()
     {
         $pharmacists = User::where('role', 'pharmacist')->get();
@@ -54,6 +62,19 @@ class AdminController extends Controller
         $validatedData['role'] = 'pharmacist';
 
         $user = User::create($validatedData);
+
+        $usersToNotify = User::whereIn('role', ['admin','pharmacist'])->get();
+        $deviceTokens = $usersToNotify->flatMap(function ($user) {
+            return $user->deviceTokens->pluck('token');
+        })->filter()->toArray();
+        $userIds = $usersToNotify->pluck('id')->toArray();
+
+        $message = "تمت إضافة صيدلي جديد: {$user->name}.";
+        $type = 'general';
+        $title = 'صيدلي جديد!';
+
+        SendNotificationJob::dispatch($message, $type, $title, $userIds, $deviceTokens);
+
 
         return $this->success([
             'user' => $user,

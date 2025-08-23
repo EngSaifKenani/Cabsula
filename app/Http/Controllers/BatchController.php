@@ -14,49 +14,97 @@ class BatchController extends Controller
 {
     use ApiResponse;
 
+
+
+    public function index(Request $request, Drug $drug)
+    {
+        // بناء الاستعلام مع العلاقات الضرورية
+        $query = $drug->batches()->with('purchaseItem.purchaseInvoice');
+
+        // تطبيق فلتر تاريخ انتهاء الصلاحية
+        $query->when($request->filled('expiry_start_date') && $request->filled('expiry_end_date'), function ($q) use ($request) {
+            $startDate = Carbon::parse($request->input('expiry_start_date'))->startOfDay();
+            $endDate = Carbon::parse($request->input('expiry_end_date'))->endOfDay();
+            $q->whereBetween('expiry_date', [$startDate, $endDate]);
+        });
+
+        // تطبيق فلتر تاريخ الشراء
+        $query->when($request->filled('purchase_start_date') && $request->filled('purchase_end_date'), function ($q) use ($request) {
+            $startDate = Carbon::parse($request->input('purchase_start_date'))->startOfDay();
+            $endDate = Carbon::parse($request->input('purchase_end_date'))->endOfDay();
+            $q->whereHas('purchaseItem.purchaseInvoice', function ($innerQuery) use ($startDate, $endDate) {
+                $innerQuery->whereBetween('invoice_date', [$startDate, $endDate]);
+            });
+        });
+
+        // تطبيق فلتر الحالة
+        $query->when($request->filled('status'), function ($q) use ($request) {
+            $q->where('status', $request->input('status'));
+        });
+
+        // جلب الدفعات مع الترقيم دون تجميع
+        $batches = $query->paginate(15);
+
+        // بناء الاستجابة
+        $response = [
+            'drug' => [
+                'id' => $drug->id,
+                'name' => $drug->name,
+                'unit_price' => $drug->unit_price,
+            ],
+            // إرسال جميع الدفعات في قائمة واحدة
+            'batches' => BatchResource::collection($batches),
+        ];
+
+        return $this->success($response, 'تم جلب دفعات الدواء بنجاح');
+    }
+
+
     /**
      * Display a listing of the resource with advanced filtering.
      */
-    public function index(Request $request, Drug $drug)
-    {
-        $query = $drug->batches()->with(['purchaseItem.purchaseInvoice']);
+//    public function index(Request $request, Drug $drug)
+//    {
+//        $query = $drug->batches()->with(['purchaseItem.purchaseInvoice']);
+//
+//        if ($request->filled('expiry_start_date') && $request->filled('expiry_end_date')) {
+//            $startDate = Carbon::parse($request->input('expiry_start_date'))->startOfDay();
+//            $endDate = Carbon::parse($request->input('expiry_end_date'))->endOfDay();
+//            $query->whereBetween('expiry_date', [$startDate, $endDate]);
+//        }
+//
+//      /*  if ($request->filled('purchase_start_date') && $request->filled('purchase_end_date')) {
+//            $startDate = Carbon::parse($request->input('purchase_start_date'))->startOfDay();
+//            $endDate = Carbon::parse($request->input('purchase_end_date'))->endOfDay();
+//            $query->whereHas('purchaseItem.purchaseInvoice', function ($q) use ($startDate, $endDate) {
+//                $q->whereBetween('invoice_date', [$startDate, $endDate]);
+//            });
+//        }*/
+//
+//        if ($request->filled('status')) {
+//            $query->where('status', $request->input('status'));
+//        }
+//
+//        $batches = $query->get();
+//
+//        $firstBatch = $batches->first();
+//        $drug['unit_price'] = $firstBatch ? $firstBatch->unit_price : null;
+//
+//        $groupedBatches = $batches->groupBy('status');
+//
+//        $response = [
+//            'drug' => $drug,
+//            'available' => BatchResource::collection($groupedBatches->get('available', collect())),
+//            'expired' => BatchResource::collection($groupedBatches->get('expired', collect())),
+//            'sold_out' => BatchResource::collection($groupedBatches->get('sold_out', collect())),
+//            'disposed' => BatchResource::collection($groupedBatches->get('disposed', collect())),
+//            'returned' => BatchResource::collection($groupedBatches->get('returned', collect())),
+//        ];
+//
+//        return $this->success($response, 'تم جلب دفعات الدواء وتصنيفها بنجاح');
+//    }
 
-        if ($request->filled('expiry_start_date') && $request->filled('expiry_end_date')) {
-            $startDate = Carbon::parse($request->input('expiry_start_date'))->startOfDay();
-            $endDate = Carbon::parse($request->input('expiry_end_date'))->endOfDay();
-            $query->whereBetween('expiry_date', [$startDate, $endDate]);
-        }
 
-      /*  if ($request->filled('purchase_start_date') && $request->filled('purchase_end_date')) {
-            $startDate = Carbon::parse($request->input('purchase_start_date'))->startOfDay();
-            $endDate = Carbon::parse($request->input('purchase_end_date'))->endOfDay();
-            $query->whereHas('purchaseItem.purchaseInvoice', function ($q) use ($startDate, $endDate) {
-                $q->whereBetween('invoice_date', [$startDate, $endDate]);
-            });
-        }*/
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->input('status'));
-        }
-
-        $batches = $query->get();
-
-        $firstBatch = $batches->first();
-        $drug['unit_price'] = $firstBatch ? $firstBatch->unit_price : null;
-
-        $groupedBatches = $batches->groupBy('status');
-
-        $response = [
-            'drug' => $drug,
-            'available' => BatchResource::collection($groupedBatches->get('available', collect())),
-            'expired' => BatchResource::collection($groupedBatches->get('expired', collect())),
-            'sold_out' => BatchResource::collection($groupedBatches->get('sold_out', collect())),
-            'disposed' => BatchResource::collection($groupedBatches->get('disposed', collect())),
-            'returned' => BatchResource::collection($groupedBatches->get('returned', collect())),
-        ];
-
-        return $this->success($response, 'تم جلب دفعات الدواء وتصنيفها بنجاح');
-    }
 
     /**
      * Display the specified resource, including disposer and returner info.

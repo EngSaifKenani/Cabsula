@@ -17,6 +17,15 @@ class Kernel extends ConsoleKernel
             ->name('weekly-manufacturer-report')
             ->withoutOverlapping();
 
+
+//php artisan batches:check-expiring
+
+        //crontab -e
+        //1
+        //* * * * * cd /path-to-your-project && php artisan schedule:run >> /dev/null 2>&1
+// C O + C X
+        $schedule->command('batches:check-expiring')->daily();
+
         //* * * * * cd /path/to/your/project && php artisan schedule:run >> /dev/null 2>&1
 
        /* $schedule->command('reports:update-manufacturer')
