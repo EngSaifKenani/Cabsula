@@ -23,6 +23,8 @@ class PurchaseInvoice extends Model
         'subtotal',
         'discount',
         'total',
+        'paid_amount',
+        'paid_at',
         'status',
         'notes',
         'user_id',
@@ -30,6 +32,7 @@ class PurchaseInvoice extends Model
 
     protected $casts=[
         'invoice_date'=>'date',
+        'paid_at' => 'datetime',
     ];
 
     /**

@@ -73,11 +73,15 @@ class DrugController extends Controller
 
     public function show(Request $request, $identifier)
     {
-        $validRelations = $this->extractValidRelations(Drug::class, $request);
-        $drug = Drug::with(array_merge($validRelations, [
-            'activeIngredients:id,scientific_name',
-            'batches'
-        ]))
+        // تحميل جميع العلاقات المحددة في النموذج
+        $drug = Drug::with([
+            'batches',
+            'form',
+            'recommendedDosage',
+            'manufacturer',
+            'activeIngredients',
+         //   'alternativeDrugs'
+        ])
             ->where(function ($query) use ($identifier) {
                 $query->where('id', $identifier)
                     ->orWhere('barcode', $identifier);

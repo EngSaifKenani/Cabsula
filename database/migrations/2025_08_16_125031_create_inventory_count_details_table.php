@@ -14,7 +14,6 @@ return new class extends Migration
             // الربط مع جدول الجرد الرئيسي
             $table->foreignId('inventory_count_id')->constrained('inventory_counts')->onDelete('cascade');
 
-            // نفترض أن لديك جدول 'medicines' و 'batches'
             $table->foreignId('drug_id')->constrained('drugs');
             $table->foreignId('batch_id')->constrained('batches');
 

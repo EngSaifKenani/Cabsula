@@ -189,4 +189,65 @@ class BatchController extends Controller
     {
         return $this->error('لا يمكن حذف دفعة بشكل مباشر.', 405);
     }
+
+    public function getDisposedLosses(Request $request)
+    {
+        $request->validate([
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+        ]);
+
+        $startDate = Carbon::parse($request->input('start_date'))->startOfDay();
+        $endDate = Carbon::parse($request->input('end_date'))->endOfDay();
+
+        $disposedBatches = Batch::where('status', 'disposed')
+            ->whereBetween('disposed_at', [$startDate, $endDate])
+            ->get();
+
+        $totalLoss = $disposedBatches->sum(function ($batch) {
+            return $batch->unit_cost * $batch->stock;
+        });
+
+        return $this->success([
+            'start_date' => $startDate->toDateString(),
+            'end_date' => $endDate->toDateString(),
+            'total_disposed_batches' => $disposedBatches->count(),
+            'total_loss' => number_format($totalLoss, 2),
+        ], 'تم حساب الخسائر بنجاح.');
+    }
+
+    public function getReturnedValue(Request $request)
+    {
+        $request->validate([
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+            'supplier_id' => 'nullable|exists:suppliers,id',
+        ]);
+
+        $startDate = Carbon::parse($request->input('start_date'))->startOfDay();
+        $endDate = Carbon::parse($request->input('end_date'))->endOfDay();
+
+        $query = Batch::where('status', 'returned')
+            ->whereBetween('returned_at', [$startDate, $endDate]);
+
+        $query->when($request->filled('supplier_id'), function ($q) use ($request) {
+            $q->whereHas('purchaseItem.purchaseInvoice', function ($invoiceQuery) use ($request) {
+                $invoiceQuery->where('supplier_id', $request->supplier_id);
+            });
+        });
+
+        $returnedBatches = $query->get();
+
+        $totalReturnedValue = $returnedBatches->sum(function ($batch) {
+            return $batch->unit_cost * $batch->stock;
+        });
+
+        return $this->success([
+            'start_date' => $startDate->toDateString(),
+            'end_date' => $endDate->toDateString(),
+            'total_returned_batches' => $returnedBatches->count(),
+            'total_returned_value' => number_format($totalReturnedValue, 2),
+        ], 'تم حساب قيمة المرتجعات بنجاح.');
+    }
+
 }

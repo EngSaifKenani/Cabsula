@@ -126,7 +126,9 @@ Route::prefix('v1')->group(function () {
             Route::post('/create', [PurchaseInvoiceController::class, 'store']);
             Route::post ('/update/{invoice}', [PurchaseInvoiceController::class, 'update']);
             Route::delete('/delete/{invoice}', [PurchaseInvoiceController::class, 'destroy']);
-        });
+            Route::post ('/update-status/{invoice}', [PurchaseInvoiceController::class, 'updateStatus']);
+
+                });
     Route::prefix('notifications')->group(function () {
         Route::get('/get-one/{id}', [NotificationController::class, 'show']);
         Route::get('/get-all', [NotificationController::class, 'index']);
@@ -161,6 +163,8 @@ Route::prefix('v1')->group(function () {
         Route::post('create', [BatchController::class, 'store']);
         Route::post ('/update-status/{id}', [BatchController::class, 'updateStatus']);
         Route::delete('delete/{drug}', [BatchController::class, 'destroy']);
+        Route::get('/disposed-losses', [BatchController::class, 'getDisposedLosses']);
+        Route::get('/returned-value', [BatchController::class, 'getReturnedValue']);
     });
 
 

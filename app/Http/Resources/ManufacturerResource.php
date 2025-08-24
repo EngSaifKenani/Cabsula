@@ -24,6 +24,10 @@ class ManufacturerResource extends JsonResource
             'drugs' => DrugResource::collection($this->whenLoaded('drugs')),
             'drugs_count' => $this->whenCounted('drugs'),
 
+            // إضافة علاقة الموردين
+            'suppliers' => $this->whenLoaded('suppliers'),
+            'suppliers_count' => $this->whenCounted('suppliers'),
+
             // التواريخ
             'created_at' => $this->when(array_key_exists('created_at', $this->getAttributes()), optional($this->created_at)->format('Y-m-d H:i:s')),
             'updated_at' => $this->when(array_key_exists('updated_at', $this->getAttributes()), optional($this->updated_at)->format('Y-m-d H:i:s')),

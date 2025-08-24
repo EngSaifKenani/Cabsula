@@ -38,7 +38,15 @@ class ActiveIngredientController extends Controller
     public function show(Request $request, $id)
     {
         $validRelations = $this->extractValidRelations(ActiveIngredient::class, $request);
-        $activeIngredient = ActiveIngredient::with($validRelations)->findOrFail($id);
+
+        $allRelations = array_merge($validRelations, [
+            'drugs',
+            'sideEffects',
+            'therapeuticUses',
+        ]);
+
+        $activeIngredient = ActiveIngredient::with($allRelations)
+            ->findOrFail($id);
 
         return $this->success(new ActiveIngredientResource($activeIngredient));
     }

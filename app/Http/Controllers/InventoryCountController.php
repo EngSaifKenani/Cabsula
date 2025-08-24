@@ -46,34 +46,27 @@ class InventoryCountController extends Controller
             });
         });
 
-        // 4. فلترة لإظهار عمليات الجرد التي تحتوي على دفعة (batch) معينة
-        $query->when($request->filled('batch_id'), function ($q) use ($request) {
-            $q->whereHas('details', function ($detailsQuery) use ($request) {
-                $detailsQuery->where('batch_id', $request->batch_id);
-            });
-        });
-
         // 5. فلترة حسب حالة الفروقات (الأكثر أهمية في الجرد)
         // القيم الممكنة: any_discrepancy | shortage | surplus | matched
-        $query->when($request->filled('discrepancy_status'), function ($q) use ($request) {
-            $status = $request->discrepancy_status;
-
-            $q->whereHas('details', function ($detailsQuery) use ($status) {
-                if ($status === 'any_discrepancy') {
-                    // أي جرد يحتوي على فرق (زيادة أو نقصان)
-                    $detailsQuery->whereColumn('counted_quantity', '!=', 'system_quantity');
-                } elseif ($status === 'shortage') {
-                    // جرد يحتوي على نقص فقط
-                    $detailsQuery->whereColumn('counted_quantity', '<', 'system_quantity');
-                } elseif ($status === 'surplus') {
-                    // جرد يحتوي على زيادة فقط
-                    $detailsQuery->whereColumn('counted_quantity', '>', 'system_quantity');
-                } elseif ($status === 'matched') {
-                    // جرد كانت كل كمياته مطابقة
-                    $detailsQuery->whereColumn('counted_quantity', '=', 'system_quantity');
-                }
-            });
-        });
+//        $query->when($request->filled('discrepancy_status'), function ($q) use ($request) {
+//            $status = $request->discrepancy_status;
+//
+//            $q->whereHas('details', function ($detailsQuery) use ($status) {
+//                if ($status === 'any_discrepancy') {
+//                    // أي جرد يحتوي على فرق (زيادة أو نقصان)
+//                    $detailsQuery->whereColumn('counted_quantity', '!=', 'system_quantity');
+//                } elseif ($status === 'shortage') {
+//                    // جرد يحتوي على نقص فقط
+//                    $detailsQuery->whereColumn('counted_quantity', '<', 'system_quantity');
+//                } elseif ($status === 'surplus') {
+//                    // جرد يحتوي على زيادة فقط
+//                    $detailsQuery->whereColumn('counted_quantity', '>', 'system_quantity');
+//                } elseif ($status === 'matched') {
+//                    // جرد كانت كل كمياته مطابقة
+//                    $detailsQuery->whereColumn('counted_quantity', '=', 'system_quantity');
+//                }
+//            });
+//        });
 
         // 6. فلترة بكلمة بحث عامة (اسم الدواء، سبب الفرق، الملاحظات)
         $query->when($request->filled('search'), function ($q) use ($request) {

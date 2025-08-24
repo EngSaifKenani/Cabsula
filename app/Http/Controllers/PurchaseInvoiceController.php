@@ -95,18 +95,30 @@ class PurchaseInvoiceController extends Controller
 
         DB::beginTransaction();
         try {
+            $calculatedSubtotal = collect($validatedData['items'])->sum(function ($item) {
+                return $item['quantity'] * $item['unit_cost'];
+            });
+            $sentDiscount = $validatedData['discount'] ?? 0;
+            $calculatedTotal = $calculatedSubtotal - $sentDiscount;
+            if (abs($calculatedTotal - $validatedData['total']) > 0.001) { // استخدام abs() للتحقق من الأرقام العشرية
+                DB::rollBack();
+                return $this->error('إجمالي الفاتورة غير صحيح. يرجى مراجعة قيم الأصناف.', 422);
+            }
+
             $invoiceNumber = $validatedData['invoice_number']  ?? 'INV-' . now()->format('Ymd') . '-' . strtoupper(Str::random(6));
             $status = $this->determineInvoiceStatus($validatedData['total'], $validatedData['paid_amount']);
+            $paidAt = ($status === 'paid') ? now() : null;
 
             $invoice = PurchaseInvoice::create([
                 'invoice_number' => $invoiceNumber,
                 'invoice_date' => $validatedData['invoice_date'] ?? now(),
                 'supplier_id' => $validatedData['supplier_id'],
-                'subtotal' => $validatedData['subtotal'] ?? $validatedData['total'],
+                'subtotal' => $validatedData['subtotal'] ?? $calculatedSubtotal,
                 'discount' => $validatedData['discount'] ?? 0,
                 'total' => $validatedData['total'],
                 'paid_amount' => $validatedData['paid_amount'],
                 'status' => $status,
+                'paid_at' => $paidAt,
                 'notes' => $validatedData['notes'],
                 'user_id' => Auth::id(),
             ]);
@@ -141,7 +153,7 @@ class PurchaseInvoiceController extends Controller
                     ]);
                 }
 
-                \App\Models\Batch::where('drug_id', $purchaseItem->drug_id)
+                Batch::where('drug_id', $purchaseItem->drug_id)
                     ->where('purchase_item_id', '!=', $purchaseItem->id)
                     ->update(['unit_price' => $newUnitPrice]);
             }
@@ -149,16 +161,12 @@ class PurchaseInvoiceController extends Controller
             DB::commit();
 
             $usersToNotify = User::whereIn('role', ['admin','pharmacist'])->get();
-            $deviceTokens = $usersToNotify->flatMap(function ($user) {
-                return $user->deviceTokens->pluck('token');
-            })->toArray();
+            $deviceTokens = $usersToNotify->flatMap(fn($user) => $user->deviceTokens->pluck('token'))->filter()->toArray();
             $userIds = $usersToNotify->pluck('id')->toArray();
             $message = "تم إنشاء فاتورة إدخال جديدة برقم {$invoiceNumber} تحتوي على " . count($validatedData['items']) . " صنف.";
             $type = 'general';
             $title = 'فاتورة إدخال جديدة!';
-
             SendNotificationJob::dispatch($message, $type, $title, $userIds, $deviceTokens);
-
 
             $invoice->load('supplier', 'user', 'purchaseItems.drug', 'purchaseItems.batches');
 
@@ -208,17 +216,36 @@ class PurchaseInvoiceController extends Controller
 
         DB::beginTransaction();
         try {
+            $calculatedSubtotal = collect($validatedData['items'])->sum(function ($item) {
+                return $item['quantity'] * $item['unit_cost'];
+            });
+            $sentDiscount = $validatedData['discount'] ?? 0;
+            $calculatedTotal = $calculatedSubtotal - $sentDiscount;
+
+            if (abs($calculatedTotal - $validatedData['total']) > 0.001) {
+                DB::rollBack();
+                return $this->error('إجمالي الفاتورة غير صحيح. يرجى مراجعة قيم الأصناف.', 422);
+            }
+
             $status = $this->determineInvoiceStatus($validatedData['total'], $validatedData['paid_amount']);
+
+            $paidAt = $invoice->paid_at;
+            if ($status === 'paid' && $invoice->status !== 'paid') {
+                $paidAt = now();
+            } elseif ($status !== 'paid') {
+                $paidAt = null;
+            }
 
             $invoice->update([
                 'invoice_number' => $validatedData['invoice_number'] ?? $invoice->invoice_number,
                 'invoice_date' => $validatedData['invoice_date'] ?? $invoice->invoice_date,
                 'supplier_id' => $validatedData['supplier_id'],
-                'subtotal' => $validatedData['subtotal'] ?? $invoice->subtotal,
+                'subtotal' => $validatedData['subtotal'] ?? $calculatedSubtotal,
                 'discount' => $validatedData['discount'] ?? $invoice->discount,
                 'total' => $validatedData['total'],
                 'paid_amount' => $validatedData['paid_amount'],
                 'status' => $status,
+                'paid_at' => $paidAt,
                 'notes' => $validatedData['notes'] ?? $invoice->notes,
                 'user_id' => Auth::id(),
             ]);
@@ -267,7 +294,7 @@ class PurchaseInvoiceController extends Controller
                     $updatedBatchIds[] = $batch->id;
                 }
 
-                \App\Models\Batch::where('drug_id', $purchaseItem->drug_id)
+                Batch::where('drug_id', $purchaseItem->drug_id)
                     ->whereNotIn('id', $updatedBatchIds)
                     ->update(['unit_price' => $newUnitPrice]);
 
@@ -325,14 +352,55 @@ class PurchaseInvoiceController extends Controller
      * @param float $paidAmount
      * @return string
      */
+
     private function determineInvoiceStatus(float $total, float $paidAmount): string
     {
-        if ($paidAmount >= $total) {
+        if (abs($paidAmount - $total) < 0.001) {
             return 'paid';
         } elseif ($paidAmount > 0) {
             return 'partially paid';
         } else {
             return 'unpaid';
+        }
+    }
+
+    public function updateStatus(Request $request, PurchaseInvoice $invoice)
+    {
+        $validatedData = $request->validate([
+            'paid_amount' => 'required|numeric|min:0',
+            'status' => 'nullable|in:paid,unpaid,partially paid',
+        ]);
+
+        DB::beginTransaction();
+
+        try {
+            $totalPaidAmount = $invoice->paid_amount + $validatedData['paid_amount'];
+
+            if ($totalPaidAmount > $invoice->total) {
+                return $this->error('المبلغ المدفوع يتجاوز قيمة الفاتورة. المبلغ المتبقي هو: ' . ($invoice->total - $invoice->paid_amount), 422);
+            }
+
+            $newStatus = $validatedData['status'] ?? $this->determineInvoiceStatus($invoice->total, $totalPaidAmount);
+
+            $paidAt = null;
+            if ($newStatus === 'paid' && $invoice->status !== 'paid') {
+                $paidAt = now();
+            } elseif ($newStatus !== 'paid') {
+                $paidAt = null;
+            }
+
+            $invoice->update([
+                'status' => $newStatus,
+                'paid_amount' => $totalPaidAmount,
+                'paid_at' => $paidAt, // تحديث حقل تاريخ الدفع
+            ]);
+
+            DB::commit();
+
+            return $this->success($invoice->fresh(), 'تم تحديث حالة الفاتورة بنجاح.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->error('حدث خطأ أثناء تحديث الفاتورة: ' . $e->getMessage(), 500);
         }
     }
 }
