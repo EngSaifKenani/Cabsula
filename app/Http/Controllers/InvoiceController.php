@@ -556,7 +556,7 @@ $this->firebaseService = $firebaseService;    }
         $totalCost   = $invoiceQuery->sum('total_cost');
 
         // 2️⃣ حساب رأس المال
-        $capital = \App\Models\Batch::where('status', 'active')
+        $capital = \App\Models\Batch::where('status', 'available')
             ->sum(DB::raw('stock * unit_cost'));
 
         return response()->json([

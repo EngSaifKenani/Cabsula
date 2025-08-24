@@ -155,6 +155,8 @@ Route::prefix('v1')->group(function () {
         Route::post('create-pharmacist', [AdminController::class, 'createPharmacist']);
         Route::post ('/update-pharmacist/{id}', [AdminController::class, 'updatePharmacist']);
         Route::delete('delete-pharmacist/{id}', [AdminController::class, 'deletePharmacist']);
+        Route::get('/money/statistics', [AdminController::class, 'statistics']);
+
     });
 
     Route::prefix('batches')->group(function () {
@@ -176,7 +178,6 @@ Route::prefix('v1')->group(function () {
     Route::delete('/invoices/{id}', [InvoiceController::class, 'destroy']);
     Route::delete('/invoices', [InvoiceController::class, 'destroy']);
     Route::put('/invoices/{id}', [InvoiceController::class, 'update']);
-    Route::get('/money/statistics', [InvoiceController::class, 'statistics']);
 
 
         Route::get('/dashboard/statistics', [\App\Http\Controllers\DashboardController::class, 'index']);
