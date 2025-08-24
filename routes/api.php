@@ -159,6 +159,8 @@ Route::prefix('v1')->group(function () {
 
     Route::prefix('batches')->group(function () {
         Route::get('/get-all/{drug}', [BatchController::class, 'index']);
+        Route::get('/get-all', [BatchController::class, 'index']);
+
         Route::get('/get-one/{drug}', [BatchController::class, 'show']);
         Route::post('create', [BatchController::class, 'store']);
         Route::post ('/update-status/{id}', [BatchController::class, 'updateStatus']);

@@ -16,19 +16,20 @@ class BatchController extends Controller
 
 
 
-    public function index(Request $request, Drug $drug)
+    public function index(Request $request, Drug $drug = null)
     {
-        // بناء الاستعلام مع العلاقات الضرورية
-        $query = $drug->batches()->with('purchaseItem.purchaseInvoice');
+        $query = $drug ? $drug->batches() : Batch::query();
 
-        // تطبيق فلتر تاريخ انتهاء الصلاحية
+        // تحميل العلاقات اللازمة
+        $query->with('purchaseItem.purchaseInvoice');
+
+        // تطبيق فلاتر تاريخ انتهاء الصلاحية، تاريخ الشراء، والحالة
         $query->when($request->filled('expiry_start_date') && $request->filled('expiry_end_date'), function ($q) use ($request) {
             $startDate = Carbon::parse($request->input('expiry_start_date'))->startOfDay();
             $endDate = Carbon::parse($request->input('expiry_end_date'))->endOfDay();
             $q->whereBetween('expiry_date', [$startDate, $endDate]);
         });
 
-        // تطبيق فلتر تاريخ الشراء
         $query->when($request->filled('purchase_start_date') && $request->filled('purchase_end_date'), function ($q) use ($request) {
             $startDate = Carbon::parse($request->input('purchase_start_date'))->startOfDay();
             $endDate = Carbon::parse($request->input('purchase_end_date'))->endOfDay();
@@ -37,26 +38,33 @@ class BatchController extends Controller
             });
         });
 
-        // تطبيق فلتر الحالة
         $query->when($request->filled('status'), function ($q) use ($request) {
             $q->where('status', $request->input('status'));
         });
 
-        // جلب الدفعات مع الترقيم دون تجميع
+        // جلب الدفعات مع الترقيم
         $batches = $query->paginate(15);
 
-        // بناء الاستجابة
+        // جلب سعر التكلفة من أحدث دفعة إذا كان الدواء موجوداً
+        $costPrice = null;
+        if ($drug) {
+            // البحث عن أحدث دفعة
+            $latestBatch = $drug->batches()->latest()->first();
+            if ($latestBatch) {
+                $unit_price = $latestBatch->unit_price;
+            }
+        }
+
         $response = [
-            'drug' => [
+            'drug' => $drug ? [
                 'id' => $drug->id,
                 'name' => $drug->name,
-                'unit_price' => $drug->unit_price,
-            ],
-            // إرسال جميع الدفعات في قائمة واحدة
+                'unit_price' => $unit_price,
+            ] : null,
             'batches' => BatchResource::collection($batches),
         ];
 
-        return $this->success($response, 'تم جلب دفعات الدواء بنجاح');
+        return $this->success($response, 'تم جلب الدفعات بنجاح');
     }
 
 
