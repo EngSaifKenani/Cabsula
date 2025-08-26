@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('phone')->nullable();
             $table->string('contact_person')->nullable(); // اسم المسؤول
             $table->text('note')->nullable();
+            $table->decimal('account_balance', 12, 2)->default(0);
             $table->text('address')->nullable();
             $table->boolean('is_active')->default(true);
             $table->timestamps();

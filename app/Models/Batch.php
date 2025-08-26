@@ -27,10 +27,6 @@ class Batch extends Model
         'is_expiry_notified',
         'total',
         'status',
-        'disposer_by',
-        'disposer_at',
-        'returner_by',
-        'returner_at',
         ];
 
     /**
@@ -42,8 +38,6 @@ class Batch extends Model
         'expiry_date' => 'date',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
-        'disposed_at' => 'datetime',
-        'returned_at' => 'datetime',
         'invoice_date' => 'date',
 
     ];

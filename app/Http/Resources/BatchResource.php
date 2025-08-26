@@ -20,8 +20,8 @@ class BatchResource extends JsonResource
             'status' => $this->status,
 
             // Clarified quantity fields and corrected 'sold' logic
-            'initial_quantity' => $this->when(auth()->user()->isAdmin(), $this->quantity),
-            'current_stock' => $this->stock,
+            'quantity' => $this->when(auth()->user()->isAdmin(), $this->quantity),
+            'stock' => $this->stock,
             'sold_quantity' => $this->quantity - $this->stock,
 
             // Added pricing info directly

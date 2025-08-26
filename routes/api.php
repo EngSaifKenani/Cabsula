@@ -4,17 +4,20 @@ use App\Http\Controllers\ActiveIngredientController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BatchController;
+use App\Http\Controllers\DisposalController;
 use App\Http\Controllers\DrugController;
 use App\Http\Controllers\FormController;
 use App\Http\Controllers\InventoryCountController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\ManufacturerController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PurchaseInvoiceController;
 use App\Http\Controllers\RecommendedDosageController;
 use App\Http\Controllers\SideEffectCategoryController;
 use App\Http\Controllers\SideEffectController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\SupplierReturnController;
 use App\Http\Controllers\TherapeuticUseController;
 use App\Http\Controllers\VerifyAccountController; // تأكد من استيراد الكنترولر الصحيح
 use App\Models\Notification;
@@ -130,15 +133,14 @@ Route::prefix('v1')->group(function () {
 
                 });
     Route::prefix('notifications')->group(function () {
-        Route::get('/get-one/{id}', [NotificationController::class, 'show']);
+        Route::get('/get-one/{notification}', [NotificationController::class, 'show']);
         Route::get('/get-all', [NotificationController::class, 'index']);
         Route::post('/create', [NotificationController::class, 'store']);
-        Route::post ('/update/{id}', [NotificationController::class, 'update']);
-        Route::delete('delete/{id}', [NotificationController::class, 'destroy']);
+        Route::post ('/update/{notification}', [NotificationController::class, 'update']);
 
         Route::get('/unread-count', [NotificationController::class, 'unreadCount']);
-        Route::post('/mark-all-as-read', [NotificationController::class, 'markAllAsRead']);
-        Route::post('/{notification}/read', [NotificationController::class, 'markAsRead']);
+        Route::get('/mark-all-as-read', [NotificationController::class, 'markAllAsRead']);
+        Route::get('/{notification}/read', [NotificationController::class, 'markAsRead']);
 
     });
     Route::prefix('recommended-dosage')->group(function () {
@@ -162,14 +164,44 @@ Route::prefix('v1')->group(function () {
     Route::prefix('batches')->group(function () {
         Route::get('/get-all/{drug}', [BatchController::class, 'index']);
         Route::get('/get-all', [BatchController::class, 'index']);
-
         Route::get('/get-one/{drug}', [BatchController::class, 'show']);
         Route::post('create', [BatchController::class, 'store']);
-        Route::post ('/update-status/{id}', [BatchController::class, 'updateStatus']);
+     //   Route::post ('/update-status/{id}', [BatchController::class, 'updateStatus']);
         Route::delete('delete/{drug}', [BatchController::class, 'destroy']);
-        Route::get('/disposed-losses', [BatchController::class, 'getDisposedLosses']);
-        Route::get('/returned-value', [BatchController::class, 'getReturnedValue']);
+        Route::post('/dispose-full/{batch}', [BatchController::class, 'disposeFullBatch']);
+        Route::post('/return-full/{batch}', [BatchController::class, 'returnFullBatch']);
+//        Route::get('/disposed-losses', [BatchController::class, 'getDisposedLosses']);
+//        Route::get('/returned-value', [BatchController::class, 'getReturnedValue']);
+
+
     });
+
+        Route::prefix('payments')->group(function () {
+            Route::get('/get-all', [PaymentController::class, 'index']);
+            Route::post('/create', [PaymentController::class, 'store']);
+            Route::get('/summary', [PaymentController::class, 'getPaymentsSummary']);
+            Route::get('/get-one/{payment}', [PaymentController::class, 'show']);
+            Route::post('/update/{payment}', [PaymentController::class, 'update']);
+            Route::delete('/delete/{payment}', [PaymentController::class, 'destroy']);
+        });
+
+        Route::prefix('disposals')->group(function () {
+            Route::get('/get-all', [DisposalController::class, 'index']);
+            Route::post('/create', [DisposalController::class, 'store']);
+            Route::get('/summary', [DisposalController::class, 'getDisposalSummary']);
+            Route::get('/get-one/{disposal}', [DisposalController::class, 'show']);
+            Route::post('/update/{disposal}', [DisposalController::class, 'update']);
+            Route::delete('/delete/{disposal}', [DisposalController::class, 'destroy']);
+        });
+
+        Route::prefix('supplier-returns')->group(function () {
+            Route::get('/get-all', [SupplierReturnController::class, 'index']);
+            Route::post('/create', [SupplierReturnController::class, 'store']);
+            Route::get('/summary', [SupplierReturnController::class, 'getReturnsSummary']);
+            Route::get('/get-one/{supplierReturn}', [SupplierReturnController::class, 'show']);
+            Route::post('/update/{supplierReturn}', [SupplierReturnController::class, 'update']);
+            Route::delete('/delete/{supplierReturn}', [SupplierReturnController::class, 'destroy']);
+        });
 
 
     Route::get('/invoices', [InvoiceController::class, 'index']);

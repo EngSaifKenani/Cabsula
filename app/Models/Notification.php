@@ -14,6 +14,8 @@ class Notification extends Model
 
     public function users()
     {
-        return $this->belongsToMany(User::class, 'notification_user');
+        return $this->belongsToMany(User::class)
+            ->withPivot('read_at')
+            ->withTimestamps(); // أضف هذا السطر
     }
 }

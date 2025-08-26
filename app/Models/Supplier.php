@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Supplier extends Model
 {
@@ -47,5 +48,10 @@ class Supplier extends Model
     public function manufacturers()
     {
         return $this->belongsToMany(Manufacturer::class, 'manufacturer_supplier');
+    }
+
+    public function payments(): HasManyThrough
+    {
+        return $this->hasManyThrough(Payment::class, PurchaseInvoice::class);
     }
 }

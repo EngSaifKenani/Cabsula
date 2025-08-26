@@ -9,103 +9,89 @@ use Illuminate\Http\Request;
 class NotificationController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Get all notifications for the authenticated user.
      */
-    function index()
+    public function index()
     {
-        $user = User::findOrFail(auth()->id());
-        // Call paginate directly on the relationship query
-        $notifications = $user->notifications()->paginate(10);
+        $notifications = auth()->user()->notifications()->latest()->paginate(10);
+
         return $this->success($notifications);
     }
 
     /**
-     * Display the specified resource.
+     * Mark a specific notification as read and show it.
      */
-    function show($notification_id)
+    function show(Notification $notification)
     {
-        // Find the notification, ensuring it belongs to the authenticated user.
-        $notification = auth()->user()->notifications()->findOrFail($notification_id);
+        // 1. استخدام علاقة المستخدم للبحث عن الإشعار.
+        // `findOrFail` سيبحث عن الإشعار المحدد فقط ضمن إشعارات المستخدم الحالي.
+        // إذا لم يجده، سيعيد تلقائيًا خطأ 404 (Not Found).
+        $userNotification = auth()->user()->notifications()->findOrFail($notification->id);
 
-        // Check if the notification is unread (pivot->read_at is null).
-        if (is_null($notification->pivot->read_at)) {
-            // Mark it as read by updating the pivot table.
-            auth()->user()->notifications()->updateExistingPivot($notification->id, [
-                'read_at' => now()
+        // 2. إذا كان الإشعار موجودًا وغير مقروء، قم بتحديثه.
+        if (is_null($userNotification->pivot->read_at)) {
+            auth()->user()->notifications()->updateExistingPivot($userNotification->id, [
+                'read_at' => now(),
             ]);
-            // Refresh the model to get the updated pivot data in the response.
-            $notification->refresh();
         }
 
-        // If the notification is found, return it.
-        return $this->success($notification);
+        return $this->success($userNotification);
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Create a new notification and attach it to users.
      */
-    function store(Request $request)
+    public function store(Request $request)
     {
-        // 1. Correct Validation
-        $validatedData = $request->validate([
+        $validated = $request->validate([
             'message' => 'required|string',
-            'users'   => 'nullable|array',
-            'users.*' => 'required|integer|exists:users,id', // Validate each item in the users array
+            'users' => 'nullable|array',
+            'users.*' => 'required|integer|exists:users,id',
         ]);
 
-        // 2. Create the notification
-        $notification = new Notification();
-        $notification->message = $validatedData['message'];
-        $notification->save();
+        // Wrap the creation and attachment in a database transaction.
+        // This ensures atomicity: either both actions succeed, or neither do.
+        $notification = \DB::transaction(function () use ($validated) {
+            $notification = Notification::create(['message' => $validated['message']]);
 
-        // 3. Attach users using the relationship
-        if (!empty($validatedData['users'])) {
-            // Attach only the specified users
-            $notification->users()->attach($validatedData['users']);
-        } else {
-            // If no users are specified, attach all users
-            $allUserIds = User::pluck('id')->all();
-            $notification->users()->attach($allUserIds);
-        }
+            $usersToNotify = $validated['users'] ?? User::pluck('id');
+            $notification->users()->attach($usersToNotify);
+
+            return $notification;
+        });
 
         return $this->success($notification, 'Notification created successfully.');
     }
 
+    /**
+     * Get the count of unread notifications for the authenticated user.
+     */
     public function unreadCount()
     {
-        $count = auth()->user()->notifications()->wherePivot('read_at', null)->count();
+        $count = auth()->user()->notifications()->wherePivotNull('read_at')->count();
 
         return $this->success(['unread_count' => $count], 'Unread notification count fetched successfully.');
     }
 
+    /**
+     * Mark a specific notification as read.
+     */
     public function markAsRead(Notification $notification)
     {
-        // Find the specific notification for the user where it's still unread.
-        $userNotification = auth()->user()->notifications()
-            ->where('notification_id', $notification->id)
-            ->wherePivot('read_at', null)
-            ->first();
-
-        // If it exists and is unread, update the pivot table.
-        if ($userNotification) {
-            auth()->user()->notifications()->updateExistingPivot($notification->id, [
-                'read_at' => now()
-            ]);
-        }
+        auth()->user()->notifications()->updateExistingPivot($notification->id, [
+            'read_at' => now(),
+        ]);
 
         return $this->success(null, 'Notification marked as read.');
     }
 
     /**
-     * Mark all unread notifications as read for the authenticated user.
+     * Mark all unread notifications as read.
      */
     public function markAllAsRead()
     {
-        auth()->user()->notifications()->wherePivot('read_at', null)->update([
-            'notification_user.read_at' => now()
-        ]);
+        auth()->user()->notifications()->newPivotStatement()->whereNull('read_at')->update(['read_at' => now()]);
 
         return $this->success(null, 'All notifications marked as read.');
     }
-
 }

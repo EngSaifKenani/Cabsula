@@ -4,10 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\BatchResource;
 use App\Models\Batch;
+use App\Models\Disposal;
 use App\Models\Drug;
+use App\Models\ReturnedItem;
+use App\Models\SupplierReturn;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class BatchController extends Controller
@@ -137,49 +142,6 @@ class BatchController extends Controller
     /**
      * Update only the status of a specific batch and record the action.
      */
-    public function updateStatus(Request $request, $id)
-    {
-        $validated = $request->validate([
-            'status' => [
-                'required',
-                'string',
-                Rule::in(['available', 'expired', 'sold_out', 'disposed', 'returned']),
-            ],
-        ]);
-
-        $batch = Batch::find($id);
-
-        if (!$batch) {
-            return $this->error('الدفعة غير موجودة', 404);
-        }
-
-        $batch->status = $validated['status'];
-
-        // Automatically record who performed the action and when
-        if ($validated['status'] == 'disposed') {
-            $batch->disposed_at = now();
-            $batch->disposed_by = auth()->id(); // Get the currently logged-in user's ID
-            // Clear return fields in case it was returned before
-            $batch->returned_at = null;
-            $batch->returned_by = null;
-        } elseif ($validated['status'] == 'returned') {
-            $batch->returned_at = now();
-            $batch->returned_by = auth()->id();
-            // Clear dispose fields
-            $batch->disposed_at = null;
-            $batch->disposed_by = null;
-        } else {
-            // If status is changed to something else (e.g., available), clear all action fields
-            $batch->disposed_at = null;
-            $batch->disposed_by = null;
-            $batch->returned_at = null;
-            $batch->returned_by = null;
-        }
-
-        $batch->save();
-
-        return $this->success(new BatchResource($batch->fresh(['disposer', 'returner'])), 'تم تحديث حالة الدفعة بنجاح');
-    }
 
     // --- Methods below are intentionally blocked ---
 
@@ -198,64 +160,146 @@ class BatchController extends Controller
         return $this->error('لا يمكن حذف دفعة بشكل مباشر.', 405);
     }
 
-    public function getDisposedLosses(Request $request)
+//    public function getDisposedLosses(Request $request)
+//    {
+//        $request->validate([
+//            'start_date' => 'required|date',
+//            'end_date' => 'required|date|after_or_equal:start_date',
+//        ]);
+//
+//        $startDate = Carbon::parse($request->input('start_date'))->startOfDay();
+//        $endDate = Carbon::parse($request->input('end_date'))->endOfDay();
+//
+//        $disposedBatches = Batch::where('status', 'disposed')
+//            ->whereBetween('disposed_at', [$startDate, $endDate])
+//            ->get();
+//
+//        $totalLoss = $disposedBatches->sum(function ($batch) {
+//            return $batch->unit_cost * $batch->stock;
+//        });
+//
+//        return $this->success([
+//            'start_date' => $startDate->toDateString(),
+//            'end_date' => $endDate->toDateString(),
+//            'total_disposed_batches' => $disposedBatches->count(),
+//            'total_loss' => number_format($totalLoss, 2),
+//        ], 'تم حساب الخسائر بنجاح.');
+//    }
+//
+//    public function getReturnedValue(Request $request)
+//    {
+//        $request->validate([
+//            'start_date' => 'required|date',
+//            'end_date' => 'required|date|after_or_equal:start_date',
+//            'supplier_id' => 'nullable|exists:suppliers,id',
+//        ]);
+//
+//        $startDate = Carbon::parse($request->input('start_date'))->startOfDay();
+//        $endDate = Carbon::parse($request->input('end_date'))->endOfDay();
+//
+//        $query = Batch::where('status', 'returned')
+//            ->whereBetween('returned_at', [$startDate, $endDate]);
+//
+//        $query->when($request->filled('supplier_id'), function ($q) use ($request) {
+//            $q->whereHas('purchaseItem.purchaseInvoice', function ($invoiceQuery) use ($request) {
+//                $invoiceQuery->where('supplier_id', $request->supplier_id);
+//            });
+//        });
+//
+//        $returnedBatches = $query->get();
+//
+//        $totalReturnedValue = $returnedBatches->sum(function ($batch) {
+//            return $batch->unit_cost * $batch->stock;
+//        });
+//
+//        return $this->success([
+//            'start_date' => $startDate->toDateString(),
+//            'end_date' => $endDate->toDateString(),
+//            'total_returned_batches' => $returnedBatches->count(),
+//            'total_returned_value' => number_format($totalReturnedValue, 2),
+//        ], 'تم حساب قيمة المرتجعات بنجاح.');
+//    }
+
+
+    public function disposeFullBatch(Batch $batch, Request $request)
     {
-        $request->validate([
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after_or_equal:start_date',
+        $validatedData = $request->validate([
+            'reason' => 'required|string|max:500',
         ]);
 
-        $startDate = Carbon::parse($request->input('start_date'))->startOfDay();
-        $endDate = Carbon::parse($request->input('end_date'))->endOfDay();
+        $disposedQuantity = $batch->stock;
 
-        $disposedBatches = Batch::where('status', 'disposed')
-            ->whereBetween('disposed_at', [$startDate, $endDate])
-            ->get();
+        if ($disposedQuantity <= 0) {
+            return $this->error('لا يوجد مخزون متاح للإتلاف.', 422);
+        }
 
-        $totalLoss = $disposedBatches->sum(function ($batch) {
-            return $batch->unit_cost * $batch->stock;
-        });
+        DB::beginTransaction();
 
-        return $this->success([
-            'start_date' => $startDate->toDateString(),
-            'end_date' => $endDate->toDateString(),
-            'total_disposed_batches' => $disposedBatches->count(),
-            'total_loss' => number_format($totalLoss, 2),
-        ], 'تم حساب الخسائر بنجاح.');
+        try {
+            $lossAmount = $disposedQuantity * $batch->unit_cost;
+
+            Disposal::create([
+                'batch_id' => $batch->id,
+                'user_id' => Auth::id(),
+                'disposed_quantity' => $disposedQuantity,
+                'loss_amount' => $lossAmount,
+                'reason' => $validatedData['reason'],
+                'disposed_at' => now(),
+            ]);
+
+            $batch->update([
+                'stock' => 0,
+                'status' => 'sold_out',
+                ]);
+
+            DB::commit();
+
+            return $this->success($batch->fresh(), 'تم إتلاف الدفعة بالكامل بنجاح.', 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->error('فشل في إتلاف الدفعة: ' . $e->getMessage(), 500);
+        }
     }
 
-    public function getReturnedValue(Request $request)
+    public function returnFullBatch(Batch $batch, Request $request)
     {
-        $request->validate([
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after_or_equal:start_date',
-            'supplier_id' => 'nullable|exists:suppliers,id',
+        $validatedData = $request->validate([
+            'notes' => 'required|string|max:500', // جعل حقل الملاحظات إجباريًا
         ]);
 
-        $startDate = Carbon::parse($request->input('start_date'))->startOfDay();
-        $endDate = Carbon::parse($request->input('end_date'))->endOfDay();
+        $returnedQuantity = $batch->stock;
 
-        $query = Batch::where('status', 'returned')
-            ->whereBetween('returned_at', [$startDate, $endDate]);
+        if ($returnedQuantity <= 0) {
+            return $this->error('لا يوجد مخزون متاح لإرجاعه.', 422);
+        }
 
-        $query->when($request->filled('supplier_id'), function ($q) use ($request) {
-            $q->whereHas('purchaseItem.purchaseInvoice', function ($invoiceQuery) use ($request) {
-                $invoiceQuery->where('supplier_id', $request->supplier_id);
-            });
-        });
+        DB::beginTransaction();
 
-        $returnedBatches = $query->get();
+        try {
+            $creditAmount = $returnedQuantity * $batch->unit_cost;
+            SupplierReturn ::create([
+                'batch_id' => $batch->id,
+                'supplier_id' => $batch->purchaseItem->purchaseInvoice->supplier_id,
+                'purchase_invoice_id' => $batch->purchaseItem->purchaseInvoice->id,
+                'user_id' => Auth::id(),
+                'returned_quantity' => $returnedQuantity,
+                'credit_amount' => $creditAmount,
+                'notes' => $validatedData['notes'], // استخدام الملاحظات من البيانات المحققة
+            ]);
 
-        $totalReturnedValue = $returnedBatches->sum(function ($batch) {
-            return $batch->unit_cost * $batch->stock;
-        });
+            // 2. تحديث حالة الدفعة وتصفير المخزون
+            $batch->update([
+                'stock' => 0,
+                'status' => 'sold_out',
+            ]);
 
-        return $this->success([
-            'start_date' => $startDate->toDateString(),
-            'end_date' => $endDate->toDateString(),
-            'total_returned_batches' => $returnedBatches->count(),
-            'total_returned_value' => number_format($totalReturnedValue, 2),
-        ], 'تم حساب قيمة المرتجعات بنجاح.');
+            DB::commit();
+
+            return $this->success($batch->fresh(), 'تم إرجاع الدفعة بالكامل بنجاح.', 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->error('فشل في إرجاع الدفعة: ' . $e->getMessage(), 500);
+        }
     }
 
 }
