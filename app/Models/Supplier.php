@@ -23,6 +23,7 @@ class Supplier extends Model
         'contact_person',
         'note',
         'address',
+        'account_balance',
         'is_active',
         'tax_number',
         'commercial_register',
