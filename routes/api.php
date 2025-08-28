@@ -40,76 +40,73 @@ Route::prefix('v1')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/send-code/email', [VerifyAccountController::class, 'sendCodeToEmail']);
-    Route::get('hi',function(){
-        return view('emails.verify-code');
-    });
 });
 
     Route::prefix('v1')->middleware(['auth:sanctum','check.logout'])->group(function () {
 
 
         Route::prefix('forms')->group(function () {
-            Route::get('/get-all', [FormController::class, 'index']);
-            Route::get('/get-one/{id}', [FormController::class, 'show']);
-            Route::post('/create', [FormController::class, 'store']);
-            Route::post('/update/{id}', [FormController::class, 'update']);
-             Route::delete('delete/{id}', [FormController::class, 'destroy']);
+            Route::get('/get-all', [FormController::class, 'index'])->middleware('is_admin');
+            Route::get('/get-one/{id}', [FormController::class, 'show'])->middleware('is_admin');
+            Route::post('/create', [FormController::class, 'store'])->middleware('is_admin');
+            Route::post('/update/{id}', [FormController::class, 'update'])->middleware('is_admin');
+             Route::delete('delete/{id}', [FormController::class, 'destroy'])->middleware('is_admin');
 
         });
 
         Route::prefix('manufacturers')->group(function () {
-            Route::get('/get-all', [ManufacturerController::class, 'index']);
-            Route::get('/get-one/{id}', [ManufacturerController::class, 'show']);
-            Route::post('/create', [ManufacturerController::class, 'store']);
-            Route::post('/update/{id}', [ManufacturerController::class, 'update']);
-             Route::delete('delete/{id}', [ManufacturerController::class, 'destroy']);
+            Route::get('/get-all', [ManufacturerController::class, 'index'])->middleware('is_admin');
+            Route::get('/get-one/{id}', [ManufacturerController::class, 'show'])->middleware('is_admin');
+            Route::post('/create', [ManufacturerController::class, 'store'])->middleware('is_admin');
+            Route::post('/update/{id}', [ManufacturerController::class, 'update'])->middleware('is_admin');
+             Route::delete('delete/{id}', [ManufacturerController::class, 'destroy'])->middleware('is_admin');
 
         });
 
        Route::prefix('therapeutic-use')->group(function () {
-            Route::get('/get-all', [TherapeuticUseController::class, 'index']);
-            Route::get('/get-one/{id}', [TherapeuticUseController::class, 'show']);
-            Route::post('/create', [TherapeuticUseController::class, 'store']);
-            Route::post('/update/{id}', [TherapeuticUseController::class, 'update']);
-            Route::delete('delete/{id}', [TherapeuticUseController::class, 'destroy']);
+            Route::get('/get-all', [TherapeuticUseController::class, 'index'])->middleware('is_admin');
+            Route::get('/get-one/{id}', [TherapeuticUseController::class, 'show'])->middleware('is_admin');
+            Route::post('/create', [TherapeuticUseController::class, 'store'])->middleware('is_admin');
+            Route::post('/update/{id}', [TherapeuticUseController::class, 'update'])->middleware('is_admin');
+            Route::delete('delete/{id}', [TherapeuticUseController::class, 'destroy'])->middleware('is_admin');
         });
 
         Route::prefix('side-effect-categories')->group(function () {
-             Route::get('/get-all', [SideEffectCategoryController::class, 'index']);
-            Route::get('/get-one/{id}', [SideEffectCategoryController::class, 'show']);
-             Route::post('/create', [SideEffectCategoryController::class, 'store']);
-            Route::post('/update/{id}', [SideEffectCategoryController::class, 'update']);
-             Route::delete('delete/{id}', [SideEffectCategoryController::class, 'destroy']);
+             Route::get('/get-all', [SideEffectCategoryController::class, 'index'])->middleware('is_admin');
+            Route::get('/get-one/{id}', [SideEffectCategoryController::class, 'show'])->middleware('is_admin');
+             Route::post('/create', [SideEffectCategoryController::class, 'store'])->middleware('is_admin');
+            Route::post('/update/{id}', [SideEffectCategoryController::class, 'update'])->middleware('is_admin');
+             Route::delete('delete/{id}', [SideEffectCategoryController::class, 'destroy'])->middleware('is_admin');
         });
 
         Route::prefix('side-effect')->group(function () {
-             Route::get('/get-all', [SideEffectController::class, 'index']);
-            Route::get('/get-one/{id}', [SideEffectController::class, 'show']);
-             Route::post('/create', [SideEffectController::class, 'store']);
-            Route::post('/update/{id}', [SideEffectController::class, 'update']);
-             Route::delete('delete/{id}', [SideEffectController::class, 'destroy']);
-            Route::get('/form-options', [SideEffectController::class, 'fetchFormOptions']);
+             Route::get('/get-all', [SideEffectController::class, 'index'])->middleware('is_admin');
+            Route::get('/get-one/{id}', [SideEffectController::class, 'show'])->middleware('is_admin');
+             Route::post('/create', [SideEffectController::class, 'store'])->middleware('is_admin');
+            Route::post('/update/{id}', [SideEffectController::class, 'update'])->middleware('is_admin');
+             Route::delete('delete/{id}', [SideEffectController::class, 'destroy'])->middleware('is_admin');
+            Route::get('/form-options', [SideEffectController::class, 'fetchFormOptions'])->middleware('is_admin');
 
         });
 
         Route::prefix('active-ingredient')->group(function () {
-             Route::get('/get-all', [ActiveIngredientController::class, 'index']);
-           Route::get('/get-one/{id}', [ActiveIngredientController::class, 'show']);
-             Route::post('/create', [ActiveIngredientController::class, 'store']);
-            Route::post('/update/{id}', [ActiveIngredientController::class, 'update']);
-            Route::post('/{activeIngredient}/remove-side-effect', [ActiveIngredientController::class, 'removeSideEffectFromActiveIngredient']);
-             Route::delete('delete/{id}', [ActiveIngredientController::class, 'destroy']);
-            Route::get('/form-options', [ActiveIngredientController::class, 'fetchFormOptions']);
+             Route::get('/get-all', [ActiveIngredientController::class, 'index'])->middleware('is_admin');
+           Route::get('/get-one/{id}', [ActiveIngredientController::class, 'show'])->middleware('is_admin');
+             Route::post('/create', [ActiveIngredientController::class, 'store'])->middleware('is_admin');
+            Route::post('/update/{id}', [ActiveIngredientController::class, 'update'])->middleware('is_admin');
+            Route::post('/{activeIngredient}/remove-side-effect', [ActiveIngredientController::class, 'removeSideEffectFromActiveIngredient'])->middleware('is_admin');
+             Route::delete('delete/{id}', [ActiveIngredientController::class, 'destroy'])->middleware('is_admin');
+            Route::get('/form-options', [ActiveIngredientController::class, 'fetchFormOptions'])->middleware('is_admin');
 
         });
 
       Route::prefix('drugs')->group(function () {
              Route::get('/get-all', [DrugController::class, 'index']);
             Route::get('/get-one/{id}', [DrugController::class, 'show']);
-             Route::post('/create', [DrugController::class, 'store']);
-            Route::post('/update/{id}', [DrugController::class, 'update']);
-             Route::delete('delete/{id}', [DrugController::class, 'destroy']);
-          Route::get('/form-options', [DrugController::class, 'fetchFormOptions']);
+             Route::post('/create', [DrugController::class, 'store'])->middleware('is_admin');
+            Route::post('/update/{id}', [DrugController::class, 'update'])->middleware('is_admin');
+             Route::delete('delete/{id}', [DrugController::class, 'destroy'])->middleware('is_admin');
+          Route::get('/form-options', [DrugController::class, 'fetchFormOptions'])->middleware('is_admin');
           // by id of drug
           Route::get('/get-alternative/{id}', [DrugController::class, 'getAlternativeDrugById']);
           Route::get('/get-alternative', [DrugController::class, 'getAlternativeDrugByActiveIngredients']);
@@ -117,19 +114,18 @@ Route::prefix('v1')->group(function () {
       });
 
         Route::prefix('suppliers')->group(function () {
-            Route::get('/get-one/{supplier}', [SupplierController::class, 'show']);
-            Route::get('/get-all', [SupplierController::class, 'index']);
-            Route::post('/create', [SupplierController::class, 'store']);
-            Route::post ('/update/{supplier}', [SupplierController::class, 'update']);
-            Route::delete('delete/{supplier}', [SupplierController::class, 'destroy']);
+            Route::get('/get-one/{supplier}', [SupplierController::class, 'show'])->middleware('is_admin');
+            Route::get('/get-all', [SupplierController::class, 'index'])->middleware('is_admin');
+            Route::post('/create', [SupplierController::class, 'store'])->middleware('is_admin');
+            Route::post ('/update/{supplier}', [SupplierController::class, 'update'])->middleware('is_admin');
+            Route::delete('delete/{supplier}', [SupplierController::class, 'destroy'])->middleware('is_admin');
         });
                 Route::prefix('purchase-invoices')->group(function () {
-            Route::get('/get-one/{invoice}', [PurchaseInvoiceController::class, 'show']);
-            Route::get('/get-all', [PurchaseInvoiceController::class, 'index']);
-            Route::post('/create', [PurchaseInvoiceController::class, 'store']);
-            Route::post ('/update/{invoice}', [PurchaseInvoiceController::class, 'update']);
-            Route::delete('/delete/{invoice}', [PurchaseInvoiceController::class, 'destroy']);
-            Route::post ('/update-status/{invoice}', [PurchaseInvoiceController::class, 'updateStatus']);
+            Route::get('/get-one/{invoice}', [PurchaseInvoiceController::class, 'show'])->middleware('is_admin');
+            Route::get('/get-all', [PurchaseInvoiceController::class, 'index'])->middleware('is_admin');
+            Route::post('/create', [PurchaseInvoiceController::class, 'store'])->middleware('is_admin');
+            Route::post ('/update/{invoice}', [PurchaseInvoiceController::class, 'update'])->middleware('is_admin');
+            Route::delete('/delete/{invoice}', [PurchaseInvoiceController::class, 'destroy'])->middleware('is_admin');
 
                 });
     Route::prefix('notifications')->group(function () {
@@ -144,14 +140,14 @@ Route::prefix('v1')->group(function () {
 
     });
     Route::prefix('recommended-dosage')->group(function () {
-         Route::get('/get-all', [RecommendedDosageController::class, 'index']);
-        Route::get('/get-one/{id}', [RecommendedDosageController::class, 'show']);
-         Route::post('/create', [RecommendedDosageController::class, 'store']);
-        Route::post ('/update/{id}', [RecommendedDosageController::class, 'update']);
-         Route::delete('delete/{id}', [RecommendedDosageController::class, 'destroy']);
+         Route::get('/get-all', [RecommendedDosageController::class, 'index'])->middleware('is_admin');
+        Route::get('/get-one/{id}', [RecommendedDosageController::class, 'show'])->middleware('is_admin');
+         Route::post('/create', [RecommendedDosageController::class, 'store'])->middleware('is_admin');
+        Route::post ('/update/{id}', [RecommendedDosageController::class, 'update'])->middleware('is_admin');
+         Route::delete('delete/{id}', [RecommendedDosageController::class, 'destroy'])->middleware('is_admin');
     });
 
-    Route::prefix('admins')->middleware(['is_admin'])->group(function () {
+    Route::prefix('admins')->middleware('is_admin')->group(function () {
         Route::get('/get-all-pharmacist', [AdminController::class, 'listPharmacists']);
         Route::get('/get-one-pharmacist/{id}', [AdminController::class, 'getPharmacistById']);
         Route::post('create-pharmacist', [AdminController::class, 'createPharmacist']);
@@ -162,21 +158,16 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::prefix('batches')->group(function () {
-        Route::get('/get-all/{drug}', [BatchController::class, 'index']);
-        Route::get('/get-all', [BatchController::class, 'index']);
-        Route::get('/get-one/{drug}', [BatchController::class, 'show']);
+        Route::get('/get-all/{drug}', [BatchController::class, 'index'])->middleware('is_admin');
+        Route::get('/get-all', [BatchController::class, 'index'])->middleware('is_admin');
+        Route::get('/get-one/{drug}', [BatchController::class, 'show'])->middleware('is_admin');
         Route::post('create', [BatchController::class, 'store']);
-     //   Route::post ('/update-status/{id}', [BatchController::class, 'updateStatus']);
         Route::delete('delete/{drug}', [BatchController::class, 'destroy']);
-        Route::post('/dispose-full/{batch}', [BatchController::class, 'disposeFullBatch']);
-        Route::post('/return-full/{batch}', [BatchController::class, 'returnFullBatch']);
-//        Route::get('/disposed-losses', [BatchController::class, 'getDisposedLosses']);
-//        Route::get('/returned-value', [BatchController::class, 'getReturnedValue']);
-
-
+        Route::post('/dispose-full/{batch}', [BatchController::class, 'disposeFullBatch'])->middleware('is_admin');
+        Route::post('/return-full/{batch}', [BatchController::class, 'returnFullBatch'])->middleware('is_admin');
     });
 
-        Route::prefix('payments')->group(function () {
+        Route::prefix('payments')->middleware('is_admin')->group(function () {
             Route::get('/get-all', [PaymentController::class, 'index']);
             Route::post('/create', [PaymentController::class, 'store']);
             Route::get('/summary', [PaymentController::class, 'getPaymentsSummary']);
@@ -185,7 +176,7 @@ Route::prefix('v1')->group(function () {
             Route::delete('/delete/{payment}', [PaymentController::class, 'destroy']);
         });
 
-        Route::prefix('disposals')->group(function () {
+        Route::prefix('disposals')->middleware('is_admin')->group(function () {
             Route::get('/get-all', [DisposalController::class, 'index']);
             Route::post('/create', [DisposalController::class, 'store']);
             Route::get('/summary', [DisposalController::class, 'getDisposalSummary']);
@@ -194,7 +185,7 @@ Route::prefix('v1')->group(function () {
             Route::delete('/delete/{disposal}', [DisposalController::class, 'destroy']);
         });
 
-        Route::prefix('supplier-returns')->group(function () {
+        Route::prefix('supplier-returns')->middleware('is_admin')->group(function () {
             Route::get('/get-all', [SupplierReturnController::class, 'index']);
             Route::post('/create', [SupplierReturnController::class, 'store']);
             Route::get('/summary', [SupplierReturnController::class, 'getReturnsSummary']);
@@ -210,22 +201,8 @@ Route::prefix('v1')->group(function () {
     Route::delete('/invoices/{id}', [InvoiceController::class, 'destroy']);
     Route::delete('/invoices', [InvoiceController::class, 'destroy']);
     Route::put('/invoices/{id}', [InvoiceController::class, 'update']);
-
-
-        Route::get('/dashboard/statistics', [\App\Http\Controllers\DashboardController::class, 'index']);
-
-
-
-
- //   Route::middleware('auth:sanctum')->post('/reports/update', [ManufacturerController::class, 'updateReports']);
-
-    //GET /api/reports/weekly?manufacturer_id=3&year=2025
-   // Route::get('/reports/weekly', [ManufacturerController::class, 'weeklyReports']);
-
-    //GET /api/reports/monthly?manufacturer_id=3&year=2025
-  //  Route::get('/reports/monthly', [ManufacturerController::class, 'monthlyReports']);
-
-    Route::apiResource('inventory-counts', InventoryCountController::class);
+    Route::get('/dashboard/statistics', [\App\Http\Controllers\DashboardController::class, 'index'])->middleware('is_admin');
+    Route::apiResource('inventory-counts', InventoryCountController::class)->middleware('is_admin');
 
 });
 

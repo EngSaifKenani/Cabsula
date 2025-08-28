@@ -180,7 +180,7 @@ class PurchaseInvoiceController extends Controller
 
                 $newUnitPrice = $itemData['batches'][0]['unit_price'];
 
-                foreach ($itemData['batches'] as $batchData) {
+                foreach($itemData['batches'] as $batchData) {
                     $batchNumber = $batchData['batch_number'] ?? 'BCH-' . now()->format('ymd') . '-' . strtoupper(Str::random(4));
                     $purchaseItem->batches()->create([
                         'drug_id' => $purchaseItem->drug_id,

@@ -13,6 +13,7 @@ use App\Services\NotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class InvoiceController extends Controller
 {
@@ -160,8 +161,7 @@ $this->firebaseService = $firebaseService;    }
 
         $items = $request->items;
 
-        $lastId = Invoice::max('id') ?? 0;
-        $invoiceNumber = 'INV-' . str_pad($lastId + 1, 6, '0', STR_PAD_LEFT);
+        $invoiceNumber = 'INV-'.now()->format('ymd') . '-' . strtoupper(Str::random(4));
 
         $invoice = Invoice::create([
             'invoice_number' => $invoiceNumber,
