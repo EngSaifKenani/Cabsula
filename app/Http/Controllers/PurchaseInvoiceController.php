@@ -402,7 +402,7 @@ class PurchaseInvoiceController extends Controller
             if ($supplier) {
                 $supplier->decrement('account_balance', $invoice->total);
             }
-
+            $invoice->payments()->delete();
             $invoice->delete();
 
             DB::commit();

@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+    # خدمة تطبيق الويب (Laravel)
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        image: laravel-app
+        container_name: laravel-app
+        restart: unless-stopped
+        ports:
+            - "8000:8000"
+        volumes:
+            - .:/var/www/html
+        networks:
+            - app-network
+
+    # خدمة خادم الويب (Nginx)
+    webserver:
+        image: nginx:alpine
+        container_name: webserver
+        restart: unless-stopped
+        ports:
+            - "80:80"
+        volumes:
+            - .:/var/www/html
+            - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+        networks:
+            - app-network
+
+    # خدمة قاعدة البيانات (MySQL)
+    db:
+        image: mysql:8.0
+        container_name: mysql_db
+        restart: unless-stopped
+        ports:
+            - "3306:3306"
+        volumes:
+            - dbdata:/var/lib/mysql
+        environment:
+            MYSQL_DATABASE: laravel_db
+            MYSQL_ROOT_PASSWORD: your_strong_password
+            MYSQL_PASSWORD: your_strong_password
+            MYSQL_USER: laravel
+        networks:
+            - app-network
+
+# تعريف الشبكات
+networks:
+    app-network:
+        driver: bridge
+
+# تعريف الأحجام (volumes) لتخزين بيانات قاعدة البيانات
+volumes:
+    dbdata:
+        driver: local
