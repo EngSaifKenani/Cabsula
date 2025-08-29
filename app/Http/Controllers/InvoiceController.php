@@ -2,27 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\SendNotificationJob;
 use App\Models\Batch;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Drug;
-use App\Models\User;
-use App\Services\FirebaseService;
-use App\Services\NotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class InvoiceController extends Controller
 {
-
-    public function __construct(NotificationService $notificationService,FirebaseService $firebaseService)
-    {
-        $this->notificationService =$notificationService;
-$this->firebaseService = $firebaseService;    }
-
     public function index(Request $request)
     {
         // التحقق من المدخلات
@@ -161,7 +150,8 @@ $this->firebaseService = $firebaseService;    }
 
         $items = $request->items;
 
-        $invoiceNumber = 'INV-'.now()->format('ymd') . '-' . strtoupper(Str::random(4));
+        $lastId = Invoice::max('id') ?? 0;
+        $invoiceNumber = 'INV-' . str_pad($lastId + 1, 6, '0', STR_PAD_LEFT);
 
         $invoice = Invoice::create([
             'invoice_number' => $invoiceNumber,
@@ -211,7 +201,7 @@ $this->firebaseService = $firebaseService;    }
                 // خصم من المخزون
                 $batch->decrement('stock', $deductQuantity);
 
-                // تحديث الحالة إذا نفد المخزون
+// تحديث الحالة إذا نفد المخزون
                 if ($batch->fresh()->stock <= 0) {
                     $batch->update(['status' => 'sold_out']);
                 }
@@ -220,61 +210,9 @@ $this->firebaseService = $firebaseService;    }
                 $totalCost += $cost;
                 $totalPrice += $price;
                 $totalProfit += $profit;
+
                 $quantityNeeded -= $deductQuantity;
             }
-             $remainingStock = Batch::where('drug_id', $drug->id)
-                ->sum('stock');
-            if ($remainingStock <= 10) {
-                $usersToNotify = User::whereIn('role', ['admin','pharmacist'])->get();
-                $deviceTokens = $usersToNotify->flatMap(function ($user) {
-                    return $user->deviceTokens->pluck('token');
-                })->toArray();  $userIds = $usersToNotify->pluck('id')->toArray();
-
-                if ($remainingStock == 0) {
-                    $message = "تم نفاد مخزون دواء {$drug->name}.";
-                    $type = 'out_of_stock';
-                    $title = 'نفاد المخزون!';
-                } else {
-                    $message = "اقترب مخزون دواء {$drug->name} من النفاد. الكمية المتبقية: {$remainingStock}";
-                    $type = 'low_stock';
-                    $title = 'تحذير مخزون منخفض!';
-                }
-
-                // إطلاق المهمة (Job) في قائمة الانتظار
-                SendNotificationJob::dispatch($message, $type, $title, $userIds, $deviceTokens);
-            }
-
-//            $remainingStock = Batch::where('drug_id', $drug->id)
-//                ->sum('stock');
-//
-//            $remainingQuantities[$drug->name] = $remainingStock;
-//
-//            // تحديد المستخدمين الذين سيتم إشعارهم
-//            $usersToNotify = User::whereIn('role', ['admin', 'pharmacist'])->get();
-//            $deviceTokens = $usersToNotify->pluck('device_token')->filter()->toArray();
-//
-//            // منطق الإشعار
-//            if ($remainingStock <= 10) {
-//                if ($remainingStock == 0) {
-//                    $message = "تم نفاد مخزون دواء {$drug->name}.";
-//                    $type = 'stock_depleted';
-//                    $title = 'نفاد المخزون!';
-//
-//                    // إرسال إشعار Firebase
-//                    $this->firebaseService->sendNotification($deviceTokens, $title, $message);
-//                } else {
-//                    $message = "اقترب مخزون دواء {$drug->name} من النفاد. الكمية المتبقية: {$remainingStock}";
-//                    $type = 'low_stock_alert';
-//                    $title = 'تحذير مخزون منخفض!';
-//
-//                    // إرسال إشعار Firebase
-//                    $this->firebaseService->sendNotification($deviceTokens, $title, $message);
-//                }
-//
-//                // إرسال الإشعار عبر الخدمة المحلية
-//                $this->notificationService->createAndSendNotification($message, $type, $usersToNotify->pluck('id')->toArray());
-//            }
-
 
             // إذا لم نتمكن من تغطية الكمية المطلوبة
             if ($quantityNeeded > 0) {
@@ -409,10 +347,9 @@ $this->firebaseService = $firebaseService;    }
                         'profit_amount' => $profit,
                     ]);
 
-                    // خصم من المخزون
                     $batch->decrement('stock', $deductQuantity);
 
-                    // تحديث الحالة إذا نفد المخزون
+// تحديث الحالة إذا نفد المخزون
                     if ($batch->fresh()->stock <= 0) {
                         $batch->update(['status' => 'sold_out']);
                     }
@@ -567,7 +504,7 @@ $this->firebaseService = $firebaseService;    }
         $totalCost   = $invoiceQuery->sum('total_cost');
 
         // 2️⃣ حساب رأس المال
-        $capital = \App\Models\Batch::where('status', 'available')
+        $capital = \App\Models\Batch::where('status', 'active')
             ->sum(DB::raw('stock * unit_cost'));
 
         return response()->json([
