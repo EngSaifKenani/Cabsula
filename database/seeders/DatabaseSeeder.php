@@ -26,10 +26,10 @@ class DatabaseSeeder extends Seeder
             SideEffectCategorySeeder::class,
             SideEffectSeeder::class,
             ActiveIngredientSeeder::class,
-          //  DrugSeeder::class,
-            ManufacturerReportSeeder::class,
-            PurchaseSeeder::class,
-            NotificationSeeder::class,
+           //  DrugSeeder::class,
+           // ManufacturerReportSeeder::class,
+           // PurchaseSeeder::class,
+           // NotificationSeeder::class,
 
 
         ]);

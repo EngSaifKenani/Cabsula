@@ -16,7 +16,7 @@ return new class extends Migration
             // الربط مع الفاتورة الرئيسية التي ينتمي إليها هذا الصنف
             $table->foreignId('purchase_invoice_id')->constrained('purchase_invoices')->onDelete('cascade');
             // الربط مع جدول الأدوية (تأكد من وجود جدول 'drugs')
-            $table->foreignId('drug_id')->constrained('drugs')->onDelete('restrict');
+            $table->foreignId('drug_id')->nullable()->constrained('drugs')->onDelete('set null');
             // إجمالي الكمية المطلوبة لهذا الصنف في الفاتورة
             $table->integer('quantity');
             // سعر شراء الوحدة (التكلفة)

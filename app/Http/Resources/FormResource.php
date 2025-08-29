@@ -18,7 +18,7 @@ class FormResource extends JsonResource
             'id' => $this->id,
             'name' => $this->when(array_key_exists('name', $this->getAttributes()), $this->name),
             'description' => $this->when(array_key_exists('description', $this->getAttributes()), $this->description),
-            'image_url' => $this->when(array_key_exists('image', $this->getAttributes()), $this->image ? asset('storage/'.$this->image) : null),
+            'image' => $this->image ? asset('storage/' . $this->image) : null,
 
             // العلاقات
             'drugs' => DrugResource::collection($this->whenLoaded('drugs')),

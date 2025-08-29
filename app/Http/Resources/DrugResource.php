@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Carbon;
 
 class DrugResource extends JsonResource
 {
@@ -19,24 +20,27 @@ class DrugResource extends JsonResource
             'name' => $this->name,
             'barcode' => $this->barcode,
             'description' => $this->description,
-            'unit_price' => $this->whenLoaded('validBatches', function () {
-                return $this->validBatches->first()?->unit_price;
+            'status' => $this->status,
+            'unit_price' => $this->whenLoaded('batches', function () {
+                $firstAvailableBatch = $this->batches
+                    ->where('status', 'available')
+                    ->sortByDesc('created_at')
+                    ->first();
+                return $firstAvailableBatch?->unit_price;
             }),
             'admin_notes' => $this->when(auth()->user()?->isPharmacist() || auth()->user()?->isAdmin(), $this->admin_notes),
-
             'image' => $this->image ? asset('storage/' . $this->image) : null,
-
             'is_requires_prescription' => $this->is_requires_prescription,
 
-            'total_quantity_in_stock' => $this->whenLoaded('validBatches', function () {
-                return $this->validBatches->sum('quantity');
+            'total_quantity_in_stock' => $this->whenLoaded('batches', function () {
+                return $this->batches->where('status', 'available')->sum('stock');
             }),
 
-            'created_at' => $this->when($this->hasAttribute('created_at'), function () {
-                return $this->created_at?->format('Y-m-d H:i:s');
+            'created_at' => $this->when($this->created_at, function () {
+                return $this->created_at->format('Y-m-d H:i:s');
             }),
-            'updated_at' => $this->when($this->hasAttribute('updated_at'), function () {
-                return $this->updated_at?->format('Y-m-d H:i:s');
+            'updated_at' => $this->when($this->updated_at, function () {
+                return $this->updated_at->format('Y-m-d H:i:s');
             }),
             'deleted_at' => $this->whenNotNull($this->deleted_at?->format('Y-m-d H:i:s')),
 
@@ -44,27 +48,14 @@ class DrugResource extends JsonResource
             'manufacturer' => ManufacturerResource::make($this->whenLoaded('manufacturer')),
             'recommended_dosage' => RecommendedDosageResource::make($this->whenLoaded('recommendedDosage')),
             'active_ingredients' => ActiveIngredientResource::collection($this->whenLoaded('activeIngredients')),
-            'alternative_drugs' => DrugResource::collection(
-                $this->whenLoaded('alternativeDrugs'),
-            ),
 
-            'valid_batches' => auth()->user()?->role === 'customer'
-                ? BatchResource::collection($this->whenLoaded('validBatches', fn() => $this->validBatches->take(1)))
-                : BatchResource::collection($this->whenLoaded('validBatches')),
+            // ** هنا التعديل **
+            // إرسال جميع الدفعات في قائمة واحدة
+            'all_batches' => BatchResource::collection($this->whenLoaded('batches')),
 
-            'valid_batches_count' => $this->whenLoaded('validBatches', function () {
-                return $this->validBatches->count();
+            'all_batches_count' => $this->whenLoaded('batches', function () {
+                return $this->batches->count();
             }),
-
-            'active_ingredients_count' => $this->whenCounted('activeIngredients'),
-            'alternative_drugs_count' => $this->whenCounted('alternativeDrugs'),
         ];
-    }
-
-    protected function hasAttribute($attribute)
-    {
-        return isset($this->resource) &&
-            (in_array($attribute, $this->resource->getFillable()) ||
-                array_key_exists($attribute, $this->resource->getAttributes()));
     }
 }

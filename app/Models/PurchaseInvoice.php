@@ -23,9 +23,16 @@ class PurchaseInvoice extends Model
         'subtotal',
         'discount',
         'total',
+        'paid_amount',
+        'paid_at',
         'status',
         'notes',
         'user_id',
+    ];
+
+    protected $casts=[
+        'invoice_date'=>'date',
+        'paid_at' => 'datetime',
     ];
 
     /**
@@ -50,5 +57,10 @@ class PurchaseInvoice extends Model
     public function purchaseItems(): HasMany
     {
         return $this->hasMany(PurchaseItem::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
     }
 }

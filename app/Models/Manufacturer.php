@@ -17,15 +17,6 @@ class Manufacturer extends Model
     {
         return $this->hasMany(Drug::class);
     }
-    public function monthlyManufacturerReports()
-    {
-        return $this->hasMany(MonthlyManufacturerReport::class);
-    }
-
-    public function weeklyManufacturerReports()
-    {
-        return $this->hasMany(WeeklyManufacturerReport::class);
-    }
 
     public function suppliers()
     {

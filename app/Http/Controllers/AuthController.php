@@ -71,7 +71,7 @@ class AuthController extends Controller
         $validated = $request->validate([
             'email' => 'required|email',
             'password' => 'required|string',
-            'fcm_token' => 'sometimes|string',
+            'fcm_token' => 'required|string',
             'platform' => 'sometimes|in:android,ios,web',
         ]);
 

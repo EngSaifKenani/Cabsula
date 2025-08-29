@@ -48,7 +48,7 @@ class SupplierController extends Controller
     // Use Route Model Binding
     public function show(Supplier $supplier)
     {
-        $supplier->load('manufacturers', 'purchaseInvoices');
+        $supplier->load('manufacturers', 'purchaseInvoices','payments');
         return $this->success($supplier, 'تم جلب المورد بنجاح');
     }
 

@@ -32,7 +32,10 @@
         public function show(Request $request, $id)
         {
             $validRelations = $this->extractValidRelations(Manufacturer::class, $request);
-            $manufacturer = Manufacturer::with($validRelations)->findOrFail($id);
+
+            $manufacturer = Manufacturer::with(array_merge($validRelations, ['drugs', 'suppliers']))
+                ->withCount(['drugs', 'suppliers']) // <-- تم إضافة هذا السطر
+                ->findOrFail($id);
 
             return $this->success(new ManufacturerResource($manufacturer), 'تم جلب الشركة بنجاح');
         }

@@ -25,7 +25,10 @@ class SideEffectCategoryController extends Controller
     public function show(Request $request, $id)
     {
         $validRelations = $this->extractValidRelations(SideEffectCategory::class, $request);
-        $category = SideEffectCategory::with($validRelations)->findOrFail($id);
+
+        $category = SideEffectCategory::with(array_merge($validRelations, ['sideEffects']))
+            ->findOrFail($id);
+
         return $this->success(new SideEffectCategoryResource($category), 'تم جلب التصنيف بنجاح');
     }
 
