@@ -201,11 +201,15 @@ class InvoiceController extends Controller
                 // خصم من المخزون
                 $batch->decrement('stock', $deductQuantity);
 
+                // تحديث الحالة إذا نفد المخزون
+                if ($batch->fresh()->stock <= 0) {
+                    $batch->update(['status' => 'sold_out']);
+                }
+
                 // جمع الإجماليات
                 $totalCost += $cost;
                 $totalPrice += $price;
                 $totalProfit += $profit;
-
                 $quantityNeeded -= $deductQuantity;
             }
 
@@ -342,7 +346,13 @@ class InvoiceController extends Controller
                         'profit_amount' => $profit,
                     ]);
 
+                    // خصم من المخزون
                     $batch->decrement('stock', $deductQuantity);
+
+                    // تحديث الحالة إذا نفد المخزون
+                    if ($batch->fresh()->stock <= 0) {
+                        $batch->update(['status' => 'sold_out']);
+                    }
 
                     $totalCost += $cost;
                     $totalPrice += $price;
