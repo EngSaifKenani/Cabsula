@@ -20,7 +20,7 @@ class VerifyAccountController extends Controller
         $cacheKey = 'verification_code_' . md5($email);
 
         if (Cache::has($cacheKey)) {
-          //  return response()->json(['message' => 'You’ve already requested a code recently. Please wait before trying again'], 429);
+            return response()->json(['message' => 'You’ve already requested a code recently. Please wait before trying again'], 429);
         }
 
         Cache::put($cacheKey, $code, now()->addMinutes(15));

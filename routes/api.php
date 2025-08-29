@@ -201,6 +201,9 @@ Route::prefix('v1')->group(function () {
     Route::delete('/invoices/{id}', [InvoiceController::class, 'destroy']);
     Route::delete('/invoices', [InvoiceController::class, 'destroy']);
     Route::put('/invoices/{id}', [InvoiceController::class, 'update']);
+
+
+
     Route::get('/dashboard/statistics', [\App\Http\Controllers\DashboardController::class, 'index'])->middleware('is_admin');
     Route::apiResource('inventory-counts', InventoryCountController::class)->middleware('is_admin');
 
