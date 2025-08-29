@@ -61,8 +61,4 @@ class Batch extends Model
     {
         return $this->belongsTo(User::class, 'disposed_by');
     }
-    public function returner()
-    {
-        return $this->belongsTo(User::class, 'returned_by');
-    }
 }

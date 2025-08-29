@@ -104,6 +104,9 @@ class SideEffectCategoryController extends Controller
     public function destroy($id)
     {
         $category = SideEffectCategory::findOrFail($id);
+        if ($category->sideEffects()->exists()) {
+            return $this->error('لا يمكن حذف هذا التصنيف لوجود آثار جانبية مرتبطة به.', 409);
+        }
         $category->translations()->delete();
         $category->delete();
         return $this->success([], 'تم حذف التصنيف بنجاح');

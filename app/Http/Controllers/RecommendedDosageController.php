@@ -123,6 +123,9 @@ class RecommendedDosageController extends Controller
     {
         $dosage = RecommendedDosage::findOrFail($id);
         $dosage->translations()->delete();
+        if ($dosage->drugs()->exists()) {
+            return $this->error('لا يمكن حذف هذا النموذج لوجود أدوية مرتبطة به.', 409);
+        }
         $dosage->delete();
 
         return $this->success([], 'تم حذف الجرعة الموصى بها بنجاح');

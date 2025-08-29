@@ -21,7 +21,6 @@ class DisposalController extends Controller
     'user',
     ]);
 
-    // --- Filtering logic as before ---
     $query->when($request->filled('user_id'), fn($q) => $q->where('user_id', $request->user_id));
     $query->when($request->filled('drug_id'), fn($q) => $q->whereHas('batch', fn($bq) => $bq->where('drug_id', $request->drug_id)));
     $query->when($request->filled('start_date') && $request->filled('end_date'), fn($q) => $q->whereBetween('disposed_at', [Carbon::parse($request->input('start_date'))->startOfDay(), Carbon::parse($request->input('end_date'))->endOfDay()]));
@@ -32,9 +31,6 @@ class DisposalController extends Controller
     return $this->success($disposals, 'تم جلب سجلات الإتلاف بنجاح.');
     }
 
-    /**
-     * Store a newly created disposal record for a specific quantity.
-     */
     public function store(Request $request)
     {
         $validatedData = $request->validate([
@@ -71,18 +67,12 @@ class DisposalController extends Controller
         }
     }
 
-    /**
-     * Display the specified disposal record.
-     */
     public function show(Disposal $disposal)
     {
         $disposal->load('batch.drug', 'user');
         return $this->success($disposal, 'تم جلب سجل الإتلاف بنجاح.');
     }
 
-    /**
-     * Update the specified disposal record.
-     */
     public function update(Request $request, Disposal $disposal)
     {
         $validatedData = $request->validate([
@@ -120,9 +110,6 @@ class DisposalController extends Controller
         }
     }
 
-    /**
-     * Remove the specified disposal record from storage.
-     */
     public function destroy(Disposal $disposal)
     {
         DB::beginTransaction();
@@ -143,9 +130,6 @@ class DisposalController extends Controller
         }
     }
 
-    /**
-     * Calculate disposal summary with optional grouping by drug.
-     */
     public function getDisposalSummary(Request $request)
     {
         $query = Disposal::query();

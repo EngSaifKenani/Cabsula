@@ -30,7 +30,6 @@ class FormController extends Controller
 
     public function store(Request $request, TranslationService $translationService)
     {
-        // التحقق من صحة المدخلات
         $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -82,7 +81,6 @@ class FormController extends Controller
 
     public function update(Request $request, $id, TranslationService $translationService)
     {
-        // التحقق من صحة البيانات
         $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -98,7 +96,6 @@ class FormController extends Controller
             $form->image = $request->file('image')->store('forms', 'public');
         }
 
-        // تحديث البيانات الأساسية
         $form->name = $request->name;
         $form->description = $request->description;
         $form->save();
@@ -145,7 +142,9 @@ class FormController extends Controller
         if ($form->image && Storage::disk('public')->exists($form->image)) {
             Storage::disk('public')->delete($form->image);
         }
-
+        if ($form->drugs()->exists()) {
+            return $this->error('لا يمكن حذف هذا النموذج لوجود أدوية مرتبطة به.', 409);
+        }
         $form->delete();
 
         return $this->success([], 'تم حذف النموذج بنجاح');

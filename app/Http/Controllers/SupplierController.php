@@ -25,12 +25,10 @@ class SupplierController extends Controller
             });
         }
 
-        // Eager load the manufacturers for each supplier
         $suppliers = $query->with('manufacturers')->latest()->paginate(15);
         return $this->success($suppliers, 'تم جلب الموردين بنجاح');
     }
 
-    // Use the Form Request for validation
     public function store(StoreSupplierRequest $request)
     {
         $validatedData = $request->validated();
@@ -45,7 +43,6 @@ class SupplierController extends Controller
         return $this->success($supplier->load('manufacturers'), 'تم إنشاء المورد بنجاح', 201);
     }
 
-    // Use Route Model Binding
     public function show(Supplier $supplier)
     {
         $supplier->load('manufacturers', 'purchaseInvoices','payments');
@@ -54,7 +51,6 @@ class SupplierController extends Controller
 
     public function update(UpdateSupplierRequest $request, Supplier $supplier)
     {
-        // The request is already validated by UpdateSupplierRequest
         $validatedData = $request->validated();
 
         if (isset($validatedData['manufacturer_ids'])) {
@@ -71,15 +67,16 @@ class SupplierController extends Controller
 
     public function destroy(Supplier $supplier)
     {
-        // Check if the supplier has any related purchase invoices
         if ($supplier->purchaseInvoices()->exists()) {
             return $this->error('لا يمكن حذف المورد لوجود فواتير مرتبطة به', 409); // 409 Conflict
         }
 
-        // Before deleting the supplier, detach all manufacturer relationships from the pivot table
+        if ($supplier->supplierReturns()->exists()) {
+            return $this->error('لا يمكن حذف المورد لوجود سجلات مرتجعات مرتبطة به', 409); // 409 Conflict
+        }
+
         $supplier->manufacturers()->detach();
 
-        // Now, delete the supplier
         $supplier->delete();
 
         return $this->success(null, 'تم حذف المورد بنجاح');

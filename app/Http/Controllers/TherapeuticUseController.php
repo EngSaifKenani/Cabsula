@@ -165,6 +165,7 @@ class TherapeuticUseController extends Controller
             Storage::disk('public')->delete($TherapeuticUse->image);
         }
         $TherapeuticUse->translations()->delete();
+        $TherapeuticUse->activeIngredients()->detach();
         $TherapeuticUse->delete();
 
         return $this->success([], 'تم حذف التصنيف بنجاح');

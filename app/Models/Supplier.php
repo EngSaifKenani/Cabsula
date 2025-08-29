@@ -55,4 +55,9 @@ class Supplier extends Model
     {
         return $this->hasManyThrough(Payment::class, PurchaseInvoice::class);
     }
+    public function supplierReturns(): HasMany
+    {
+        return $this->hasMany(SupplierReturn::class);
+    }
+
 }

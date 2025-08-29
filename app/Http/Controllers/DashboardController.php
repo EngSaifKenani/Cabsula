@@ -12,35 +12,23 @@ use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
-    /**
-     * جلب جميع الإحصائيات الخاصة بلوحة التحكم
-     */
+
     public function index()
     {
-        // --- 1. عدد الأدوية الإجمالي ---
         $totalDrugs = Drug::count();
-
-
-        // --- 2. عدد الفواتير المباعة اليوم ---
         $salesTodayCount = Invoice::whereDate('created_at', Carbon::today())->count();
-
-
-        // --- 3. مقارنة عدد فواتير اليوم بالأمس ---
         $salesYesterdayCount = Invoice::whereDate('created_at', Carbon::yesterday())->count();
 
         $percentageChange = 0;
         if ($salesYesterdayCount > 0) {
-            // حساب النسبة المئوية للتغير
             $percentageChange = (($salesTodayCount - $salesYesterdayCount) / $salesYesterdayCount) * 100;
         } elseif ($salesTodayCount > 0) {
-            // إذا كانت مبيعات الأمس صفراً واليوم لا، فالزيادة 100%
             $percentageChange = 100;
         }
 
 
-        // --- 4. أكثر 5 أدوية مبيعاً ---
         $topSellingDrugs = InvoiceItem::query()
-        ->select('drug_id', DB::raw('SUM(quantity) as total_quantity_sold')) // تأكد من أن اسم حقل الكمية هو 'quantity'
+        ->select('drug_id', DB::raw('SUM(quantity) as total_quantity_sold'))
         ->groupBy('drug_id')
             ->orderByDesc('total_quantity_sold')
             ->limit(5)
@@ -54,12 +42,11 @@ class DashboardController extends Controller
                 ];
             });
 
-        // --- 1. الأدوية التي شارفت على الانتهاء (خلال 60 يوماً القادمة) ---
         $expiryThresholdInDays = 60;
         $nearExpiryDrugs = Batch::query()
             ->where('stock', '>', 0)
             ->whereBetween('expiry_date', [Carbon::today(), Carbon::today()->addDays($expiryThresholdInDays)])
-            ->with('drug:id,name') // تحميل اسم الدواء
+            ->with('drug:id,name')
             ->orderBy('expiry_date', 'asc')
             ->limit(20)
             ->get()
@@ -96,29 +83,25 @@ class DashboardController extends Controller
         }
 
 
-        // --- 3. الأدوية ذات المخزون المنخفض ---
-        $reorder_level = 10; // يمكنك تغيير هذا الرقم حسب الحاجة
+        $reorder_level = 10;
 
         $lowStockDrugs = Drug::query()
             ->select('id', 'name')
-            ->withSum('batches', 'stock') // <-- هذا هو السطر الأساسي للأداء العالي
+            ->withSum('batches', 'stock')
             ->get()
             ->filter(function ($drug) use ($reorder_level) {
-                // نستخدم الخاصية المؤقتة التي أنشأها withSum
-                // batches + _sum_ + stock  =>  batches_sum_stock
                 return $drug->batches_sum_stock <= $reorder_level && $drug->batches_sum_stock > 0;
             })
-            ->sortBy('batches_sum_stock') // الترتيب باستخدام نفس الخاصية
+            ->sortBy('batches_sum_stock')
             ->take(10)
             ->map(function ($drug) {
                 return [
                     'id'=>$drug->id,
                     'name' => $drug->name,
-                    'quantity' => (int) $drug->batches_sum_stock, // استخدام نفس الخاصية
+                    'quantity' => (int) $drug->batches_sum_stock,
                 ];
             })->values();
 
-        // --- تجميع كل الإحصائيات في رد واحد ---
         $statistics = [
             'total_drugs' => $totalDrugs,
             'sales_today_count' => $salesTodayCount,

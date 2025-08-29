@@ -27,7 +27,6 @@ class StoreSupplierRequest extends FormRequest
             'is_active' => 'boolean',
             'tax_number' => 'nullable|string|max:255',
             'commercial_register' => 'nullable|string|max:255',
-            // Validation for the many-to-many relationship
             'manufacturer_ids' => 'required|array',
             'manufacturer_ids.*' => 'required|exists:manufacturers,id'
         ];

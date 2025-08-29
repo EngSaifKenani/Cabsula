@@ -35,28 +35,21 @@ class DrugController extends Controller
 
     public function index(Request $request)
     {
-        // Start with the base query and eager load relationships
         $query = Drug::with('batches');
-        // Select the necessary fields to optimize the query
         $query->select('id', 'name', 'description', 'image', 'is_requires_prescription', 'barcode', 'status');
 
-        // Filter by drug status (sellable or non_sellable)
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
         }
 
-        // Filter by prescription requirement (true or false)
         if ($request->filled('is_requires_prescription')) {
             $query->where('is_requires_prescription', $request->input('is_requires_prescription'));
         }
 
-        // Additional filter ideas:
-        // Filter by manufacturer ID
         if ($request->filled('manufacturer_id')) {
             $query->where('manufacturer_id', $request->input('manufacturer_id'));
         }
 
-        // Search by drug name or barcode
         if ($request->filled('search')) {
             $search = '%' . $request->input('search') . '%';
             $query->where(function ($q) use ($search) {
@@ -65,7 +58,6 @@ class DrugController extends Controller
             });
         }
 
-        // Get paginated results
         $drugs = $query->paginate(10);
 
         return $this->success(new DrugCollection($drugs));
@@ -73,14 +65,12 @@ class DrugController extends Controller
 
     public function show(Request $request, $identifier)
     {
-        // تحميل جميع العلاقات المحددة في النموذج
         $drug = Drug::with([
             'batches',
             'form',
             'recommendedDosage',
             'manufacturer',
             'activeIngredients',
-         //   'alternativeDrugs'
         ])
             ->where(function ($query) use ($identifier) {
                 $query->where('id', $identifier)
@@ -110,7 +100,6 @@ class DrugController extends Controller
             'translations' => 'required|array',
             'translations.*.locale' => 'required|string|in:en,ar,fr',
             'translations.*.name' => 'required|string|max:255',
-            // إضافة حقل الحالة كاختياري مع تحديد القيم الممكنة
             'status' => 'nullable|string|in:sellable,non_sellable',
         ]);
         $imagePath=null;
@@ -129,7 +118,6 @@ class DrugController extends Controller
                 'form_id' => $request['form_id'],
                 'manufacturer_id' => $request['manufacturer_id'],
                 'recommended_dosage_id' => $request['recommended_dosage_id'],
-                // إضافة الحالة إلى بيانات الإنشاء
                 'status' => $request['status'] ?? 'sellable',
             ]);
 
@@ -280,6 +268,9 @@ class DrugController extends Controller
     {
         $drug = Drug::findOrFail($id);
 
+        if ($drug->batches()->exists()) {
+            return $this->error('لا يمكن حذف هذا الدواء لوجود دفعات مرتبطة به.', 409);
+        }
         if ($drug->image) {
             Storage::disk('public')->delete($drug->image);
         }

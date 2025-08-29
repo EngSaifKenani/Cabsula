@@ -125,13 +125,6 @@ class SupplierReturnController extends Controller
         }
     }
 
-    /**
-     * Update the specified return record.
-     *
-     * @param Request $request
-     * @param SupplierReturn $supplierReturn
-     * @return \Illuminate\Http\JsonResponse
-     */
     public function update(Request $request, SupplierReturn $supplierReturn)
     {
         $validatedData = $request->validate([
@@ -145,12 +138,6 @@ class SupplierReturnController extends Controller
         return $this->success($supplierReturn, 'تم تحديث الملاحظات بنجاح.');
     }
 
-    /**
-     * Remove the specified return record from storage.
-     *
-     * @param SupplierReturn $supplierReturn
-     * @return \Illuminate\Http\JsonResponse
-     */
     public function destroy(SupplierReturn $supplierReturn)
     {
         DB::beginTransaction();
@@ -158,12 +145,15 @@ class SupplierReturnController extends Controller
             $batch = $supplierReturn->batch;
             $supplier = $supplierReturn->supplier;
 
+
+
             if ($batch) {
+                if ($batch->stock>0){
+                    $batch->update(['status'=>'available']);
+                }
                 $batch->increment('stock', $supplierReturn->returned_quantity);
             }
-            if ($batch->stock>0){
-                $batch->update(['status'=>'available']);
-            }
+
 
             if ($supplier) {
                 $supplier->increment('account_balance', $supplierReturn->credit_amount);

@@ -26,15 +26,12 @@ class PurchaseInvoiceController extends Controller
     {
         $query = PurchaseInvoice::query();
 
-        // Load relationships for each invoice
         $query->with('supplier', 'user');
 
-        // Filter by specific status if requested
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
-        // Apply other existing filters
         if ($request->filled('invoice_date')) {
             $query->whereDate('invoice_date', $request->invoice_date);
         }
@@ -63,7 +60,6 @@ class PurchaseInvoiceController extends Controller
             $query->where('supplier_id', $request->supplier_id);
         }
 
-        // Paginate and get the results
         $invoices = $query->latest()->paginate(15);
 
         return $this->success($invoices, 'تم جلب الفواتير بنجاح');
@@ -82,12 +78,6 @@ class PurchaseInvoiceController extends Controller
         return $this->success($invoice, 'تم جلب الفاتورة بنجاح');
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
         $validatedData = $request->validate([
@@ -154,7 +144,6 @@ class PurchaseInvoiceController extends Controller
                 'user_id' => Auth::id(),
             ]);
 
-            // ** إضافة سجل دفع إذا كان المبلغ المدفوع أكبر من الصفر **
             if ($finalPaidAmount > 0) {
                 Payment::create([
                     'purchase_invoice_id' => $invoice->id,
@@ -208,7 +197,7 @@ class PurchaseInvoiceController extends Controller
             $deviceTokens = $usersToNotify->flatMap(fn($user) => $user->deviceTokens->pluck('token'))->filter()->toArray();
             $userIds = $usersToNotify->pluck('id')->toArray();
             $message = "تم إنشاء فاتورة إدخال جديدة برقم {$invoiceNumber} تحتوي على " . count($validatedData['items']) . " صنف.";
-            $type = 'new_purchase_invoice';
+            $type = 'general';
             $title = 'فاتورة إدخال جديدة!';
             SendNotificationJob::dispatch($message, $type, $title, $userIds, $deviceTokens);
 
@@ -222,12 +211,9 @@ class PurchaseInvoiceController extends Controller
         }
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
+
     public function update(Request $request, PurchaseInvoice $invoice)
     {
-        // حفظ القيم القديمة للفاتورة قبل التحديث
         $oldInvoiceTotal = $invoice->total;
         $oldPaidAmount = $invoice->paid_amount;
         $oldSupplierId = $invoice->supplier_id;
@@ -266,7 +252,6 @@ class PurchaseInvoiceController extends Controller
                 return $this->error('إجمالي الفاتورة غير صحيح. يرجى مراجعة قيم الأصناف.', 422);
             }
 
-            // ** هنا يبدأ المنطق الجديد **
             $supplier = Supplier::find($validatedData['supplier_id']);
             $initialPaidAmount = $validatedData['paid_amount'];
             $creditApplied = 0;
@@ -380,9 +365,6 @@ class PurchaseInvoiceController extends Controller
         }
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(PurchaseInvoice $invoice)
     {
         DB::beginTransaction();
@@ -401,6 +383,10 @@ class PurchaseInvoiceController extends Controller
             $supplier = $invoice->supplier;
             if ($supplier) {
                 $supplier->decrement('account_balance', $invoice->total);
+            }
+            foreach ($invoice->purchaseItems as $purchaseItem) {
+                $purchaseItem->batches()->delete();
+                $purchaseItem->delete();
             }
             $invoice->payments()->delete();
             $invoice->delete();
@@ -426,51 +412,4 @@ class PurchaseInvoiceController extends Controller
         }
     }
 
-//    public function updateStatus(Request $request, PurchaseInvoice $invoice)
-//    {
-//        $validatedData = $request->validate([
-//            'paid_amount' => 'required|numeric|min:0',
-//            'status' => 'nullable|in:paid,unpaid,partially paid',
-//        ]);
-//
-//        DB::beginTransaction();
-//
-//        try {
-//            $oldPaidAmount = $invoice->paid_amount;
-//            $totalPaidAmount = $oldPaidAmount + $validatedData['paid_amount'];
-//
-//            if ($totalPaidAmount > $invoice->total) {
-//                return $this->error('المبلغ المدفوع يتجاوز قيمة الفاتورة. المبلغ المتبقي هو: ' . ($invoice->total - $invoice->paid_amount), 422);
-//            }
-//
-//            $newStatus = $validatedData['status'] ?? $this->determineInvoiceStatus($invoice->total, $totalPaidAmount);
-//
-//            $paidAt = null;
-//            if ($newStatus === 'paid' && $invoice->status !== 'paid') {
-//                $paidAt = now();
-//            } elseif ($newStatus !== 'paid') {
-//                $paidAt = null;
-//            }
-//
-//            $invoice->update([
-//                'status' => $newStatus,
-//                'paid_amount' => $totalPaidAmount,
-//                'paid_at' => $paidAt,
-//            ]);
-//
-//            // ** هنا التعديل **
-//            $supplier = Supplier::find($invoice->supplier_id);
-//            if ($supplier) {
-//                $amountDifference = $totalPaidAmount - $oldPaidAmount;
-//                $supplier->decrement('account_balance', $amountDifference);
-//            }
-//
-//            DB::commit();
-//
-//            return $this->success($invoice->fresh(), 'تم تحديث حالة الفاتورة بنجاح.');
-//        } catch (\Exception $e) {
-//            DB::rollBack();
-//            return $this->error('حدث خطأ أثناء تحديث الفاتورة: ' . $e->getMessage(), 500);
-//        }
-//    }
 }

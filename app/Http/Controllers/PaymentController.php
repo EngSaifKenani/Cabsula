@@ -69,7 +69,6 @@ class PaymentController extends Controller
                 return $this->error('المبلغ المدفوع يتجاوز الرصيد المتبقي على الفاتورة.', 422);
             }
 
-            // 1. إنشاء سجل الدفع
             $payment = Payment::create([
                 'purchase_invoice_id' => $invoice->id,
                 'user_id' => Auth::id(),
@@ -77,7 +76,6 @@ class PaymentController extends Controller
                 'notes' => $validatedData['notes'],
             ]);
 
-            // 2. تحديث الفاتورة
             $newPaidAmount = $invoice->paid_amount + $validatedData['amount'];
             $newStatus = $this->determineInvoiceStatus($invoice->total, $newPaidAmount);
 
@@ -87,7 +85,6 @@ class PaymentController extends Controller
                 'paid_at' => ($newStatus === 'paid' && $invoice->status !== 'paid') ? now() : $invoice->paid_at,
             ]);
 
-            // 3. تحديث رصيد المورد
             $supplier = Supplier::find($invoice->supplier_id);
             $supplier->decrement('account_balance', $validatedData['amount']);
 
@@ -187,15 +184,21 @@ class PaymentController extends Controller
                 'total_payments_count' => $payments->count(),
             ], 'تم حساب ملخص المدفوعات بنجاح.');
         } else {
-            $summaryBySupplier = $payments->groupBy('purchaseInvoice.supplier.id')->map(function ($paymentsBySupplier) {
-                $supplier = $paymentsBySupplier->first()->purchaseInvoice->supplier;
-                return [
-                    'supplier_id' => $supplier->id,
-                    'supplier_name' => $supplier->name,
-                    'total_payments_amount' => number_format($paymentsBySupplier->sum('amount'), 2),
-                    'total_payments_count' => $paymentsBySupplier->count(),
-                ];
-            });
+            $summaryBySupplier = $payments
+                ->filter(function ($payment) {
+                    // نتحقق من وجود فاتورة ومورد مرتبط بها قبل المتابعة
+                    return $payment->purchaseInvoice && $payment->purchaseInvoice->supplier;
+                })
+                ->groupBy('purchaseInvoice.supplier.id')
+                ->map(function ($paymentsBySupplier) {
+                    $supplier = $paymentsBySupplier->first()->purchaseInvoice->supplier;
+                    return [
+                        'supplier_id' => $supplier->id,
+                        'supplier_name' => $supplier->name,
+                        'total_payments_amount' => number_format($paymentsBySupplier->sum('amount'), 2),
+                        'total_payments_count' => $paymentsBySupplier->count(),
+                    ];
+                });
             return $this->success([
                 'summary_by_supplier' => $summaryBySupplier->values(),
             ], 'تم حساب ملخص المدفوعات مجمعًا بنجاح.');
